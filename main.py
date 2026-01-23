@@ -15,57 +15,66 @@ def send_msg(text):
         requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: pass
 
-st_autorefresh(interval=60000, key="desktop_radar_v4")
+st_autorefresh(interval=60000, key="desktop_radar_v5")
 
 st.set_page_config(page_title="منصة هادي الاحترافية", layout="wide")
-# التصحيح هنا: تم تغيير unsafe_allow_index إلى unsafe_allow_html
-st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 رادار الأسهم العالمي - لوحة التحكم</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 رادار هادي: مراقبة التشبع والانعكاس</h1>", unsafe_allow_html=True)
 
-# --- 2. القائمة الموسعة ---
-US_STOCKS = {
-    'أبل': 'AAPL', 'مايكروسوفت': 'MSFT', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 'أمازون': 'AMZN',
-    'ميتا': 'META', 'جوجل': 'GOOGL', 'نتفلكس': 'NFLX', 'أيه إم دي': 'AMD', 'بايبال': 'PYPL',
-    'أدوبي': 'ADBE', 'سيسكو': 'CSCO', 'إنتل': 'INTC', 'بايدو': 'BIDU', 'لوسيد': 'LCID'
-}
+# --- 2. القائمة ---
+US_STOCKS = {'أبل': 'AAPL', 'مايكروسوفت': 'MSFT', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 'أمازون': 'AMZN', 'لوسيد': 'LCID', 'نيو': 'NIO'}
+SA_STOCKS = {'أرامكو': '2222.SR', 'الراجحي': '1120.SR', 'الأهلي': '1180.SR', 'stc': '7010.SR', 'سابك': '2010.SR'}
 
-SA_STOCKS = {
-    'أرامكو': '2222.SR', 'الراجحي': '1120.SR', 'الأهلي': '1180.SR', 'stc': '7010.SR',
-    'سابك': '2010.SR', 'معادن': '1211.SR', 'الإنماء': '1150.SR', 'لوبريف': '2223.SR'
-}
-
-market = st.sidebar.radio("اختر السوق لمراقبته:", ["الأمريكي (مباشر الآن)", "السعودي"])
-stocks_dict = US_STOCKS if market == "الأمريكي (مباشر الآن)" else SA_STOCKS
+market = st.sidebar.radio("اختر السوق:", ["الأمريكي", "السعودي"])
+stocks_dict = US_STOCKS if market == "الأمريكي" else SA_STOCKS
 
 results = []
 my_bar = st.progress(0)
 
-# --- 3. المعالجة ---
 for i, (name, sym) in enumerate(stocks_dict.items()):
     try:
         data = yf.download(sym, period='2d', interval='1m', progress=False)
-        if not data.empty:
+        if not data.empty and len(data) > 15:
             close_prices = data['Close'].squeeze()
-            if len(close_prices) > 14:
-                rsi_val = float(ta.rsi(close_prices, length=14).iloc[-1])
-            else: rsi_val = 50.0
+            rsi_val = float(ta.rsi(close_prices, length=14).iloc[-1])
             
-            price = float(close_prices.iloc[-1])
-            is_entry = rsi_val < 35
-            status = "🟢 دخول الآن" if is_entry else "⚪ انتظار"
+            curr_p = float(close_prices.iloc[-1])
+            prev_p = float(close_prices.iloc[-2]) # السعر في الدقيقة السابقة
             
-            if is_entry:
-                send_msg(f"🚀 فرصة شراء: {name} ({sym})\nالسعر: {price:.2f}")
+            # منطق الحالات
+            is_oversold = rsi_val < 35
+            is_reversing = is_oversold and (curr_p > prev_p) # تشبع + بداية صعود
+            
+            if is_reversing:
+                status = "🔵 بداية ارتداد"
+                send_msg(f"🔵 تأكيد ارتداد: {name}\nالسعر الحالي: {curr_p:.2f}")
+            elif is_oversold:
+                status = "🟢 تشبع بيعي"
+            else:
+                status = "⚪ انتظار"
                 
-            results.append({"الشركة": name, "الرمز": sym, "الحالة": status, "السعر": round(price, 2), "RSI": round(rsi_val, 1)})
+            results.append({
+                "الشركة": name,
+                "الحالة": status,
+                "اتجاه السعر": "📈 صعود" if curr_p > prev_p else "📉 هبوط",
+                "السعر الحالي": round(curr_p, 2),
+                "RSI": round(rsi_val, 1)
+            })
     except: continue
     my_bar.progress((i + 1) / len(stocks_dict))
 
-# --- 4. العرض ---
+# --- 3. العرض الملون ---
 if results:
     df = pd.DataFrame(results)
+    
     def apply_style(row):
-        if row['الحالة'] == "🟢 دخول الآن":
-            return ['background-color: #2ecc71; color: white; font-weight: bold'] * len(row)
+        if row['الحالة'] == "🔵 بداية ارتداد":
+            return ['background-color: #3498db; color: white; font-weight: bold'] * len(row)
+        elif row['الحالة'] == "🟢 تشبع بيعي":
+            return ['background-color: #2ecc71; color: white'] * len(row)
         return [''] * len(row)
 
     st.dataframe(df.style.apply(apply_style, axis=1), use_container_width=True, hide_index=True)
+else:
+    st.info("🔄 بانتظار البيانات...")
+
+st.caption("🔵 الأزرق: يعني السهم رخيص (RSI < 35) وبدأ يرتفع الآن. | 🟢 الأخضر: يعني السهم رخيص جداً ولكن لا يزال ينزل أو مستقر.")
