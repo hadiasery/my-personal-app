@@ -5,9 +5,9 @@ import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث تلقائي كل دقيقتين
-st_autorefresh(interval=120000, key="sniper_radar_v11")
+st_autorefresh(interval=120000, key="sniper_radar_v12")
 
-st.set_page_config(page_title="رادار الصفقات المضمونة", layout="wide")
+st.set_page_config(page_title="رادار القناص V12", layout="wide")
 
 # --- قائمة الأسهم ---
 STOCKS = {
@@ -23,41 +23,49 @@ golden_puts = []
 
 # --- محرك التحليل ---
 with st.spinner('جاري قنص الفرص...'):
-    # جلب بيانات SPY أولاً لتحديد اتجاه السوق
-    spy_data = yf.download('SPY', period='2d', interval='5m', progress=False)
-    spy_close = spy_data['Close'].iloc[-1]
-    spy_prev_high = spy_data['High'].iloc[-2]
-    spy_prev_low = spy_data['Low'].iloc[-2]
+    # 1. تحليل وضع السباكس (SPY) أولاً
+    spy_ticker = yf.Ticker("SPY")
+    spy_df = spy_ticker.history(period="2d", interval="5m")
     
     spy_status = "⚪ أبيض"
-    if spy_close > spy_prev_high: spy_status = "🔵 أزرق"
-    elif spy_close < spy_prev_low: spy_status = "🔴 أحمر"
+    if not spy_df.empty and len(spy_df) > 1:
+        # تحويل القيم لأرقام بسيطة لتجنب الخطأ السابق
+        s_close = float(spy_df['Close'].iloc[-1])
+        s_high = float(spy_df['High'].iloc[-2])
+        s_low = float(spy_df['Low'].iloc[-2])
+        
+        if s_close > s_high: spy_status = "🔵 أزرق"
+        elif s_close < s_low: spy_status = "🔴 أحمر"
 
+    # 2. تحليل بقية الأسهم
     for name, sym in STOCKS.items():
         try:
-            df = yf.download(sym, period='5d', interval='5m', progress=False)
-            if df.empty: continue
+            ticker = yf.Ticker(sym)
+            df = ticker.history(period="5d", interval="5m")
+            if df.empty or len(df) < 20: continue
             
-            close_p = df['Close'].squeeze()
-            curr_p = float(close_p.iloc[-1])
-            prev_high = float(df['High'].squeeze().iloc[-2])
-            prev_low = float(df['Low'].squeeze().iloc[-2])
+            # تنظيف البيانات وتحويلها لأرقام
+            c_p = float(df['Close'].iloc[-1])
+            p_high = float(df['High'].iloc[-2])
+            p_low = float(df['Low'].iloc[-2])
             
             # السيولة
-            vol = df['Volume'].squeeze()
-            vol_ratio = vol.iloc[-1] / vol.rolling(10).mean().iloc[-1]
+            vol = df['Volume']
+            avg_vol = vol.rolling(10).mean().iloc[-1]
+            vol_ratio = float(vol.iloc[-1] / avg_vol)
             is_explosion = vol_ratio > 1.25
             
             # المؤشرات
-            rsi = ta.rsi(close_p, length=14).iloc[-1]
-            sma5 = ta.sma(close_p, 5).iloc[-1]
-            sma13 = ta.sma(close_p, 13).iloc[-1]
+            rsi_series = ta.rsi(df['Close'], length=14)
+            rsi = float(rsi_series.iloc[-1]) if not rsi_series.empty else 50
+            sma5 = float(ta.sma(df['Close'], 5).iloc[-1])
+            sma13 = float(ta.sma(df['Close'], 13).iloc[-1])
             
-            status, color = "⚪ هدوء", "white"
+            status, color = "⚪ هدوء", "transparent"
             
-            # فحص الشروط المضمونة (شروط هادي)
-            is_call = (curr_p > prev_high) and (sma5 > sma13) and is_explosion
-            is_put = (curr_p < prev_low) and (sma5 < sma13) and is_explosion
+            # تطبيق شروط هادي "المضمونة"
+            is_call = (c_p > p_high) and (sma5 > sma13) and is_explosion
+            is_put = (c_p < p_low) and (sma5 < sma13) and is_explosion
             
             if is_call:
                 status, color = "🔵 دخول Call مؤكد", "#0D47A1"
@@ -70,21 +78,35 @@ with st.spinner('جاري قنص الفرص...'):
             elif is_explosion:
                 status, color = "⚡ انفجار سيولة", "#CCFF00"
 
-            all_data.append({"الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}", "السيولة": f"{vol_ratio:.2f}x", "RSI": int(rsi), "_color": color})
-        except: continue
+            all_data.append({
+                "الأداة": name, "الحالة": status, "السعر": f"{c_p:.2f}", 
+                "السيولة": f"{vol_ratio:.2f}x", "RSI": int(rsi), "_color": color
+            })
+        except Exception as e:
+            continue
 
 # --- العرض المرئي ---
-st.markdown(f"### 🎯 حالة السوق الحالي (SPY): {spy_status}")
+st.markdown(f"<h2 style='text-align: center;'>📊 وضع السوق الحالي (SPY): {spy_status}</h2>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
     st.success(f"✅ فرص Call مضمونة: {len(golden_calls)}")
-    for s in golden_calls: st.button(f"🔥 {s} - جـاهز للكول", key=s+"c")
+    for s in golden_calls: st.warning(f"🚀 {s}: جـاهز للكول")
 
 with col2:
     st.error(f"✅ فرص Put مضمونة: {len(golden_puts)}")
-    for s in golden_puts: st.button(f"📉 {s} - جـاهز للبوت", key=s+"p")
+    for s in golden_puts: st.warning(f"📉 {s}: جـاهز للبوت")
 
 st.divider()
-df_final = pd.DataFrame(all_data)
-st.dataframe(df_final.style.apply(lambda x: [f'background-color: {x["_color"]}; color: {"black" if x["_color"]=="#CCFF00" else "white"}' for _ in x], axis=1), use_container_width=True, hide_index=True)
+
+if all_data:
+    df_display = pd.DataFrame(all_data)
+    def style_rows(row):
+        bg = row['_color']
+        text = "black" if bg == "#CCFF00" else "white"
+        if bg == "transparent": return [''] * len(row)
+        return [f'background-color: {bg}; color: {text}; font-weight: bold'] * len(row)
+
+    st.dataframe(df_display.style.apply(style_rows, axis=1), 
+                 column_order=("الأداة", "الحالة", "السعر", "السيولة", "RSI"),
+                 use_container_width=True, hide_index=True)
