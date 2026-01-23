@@ -4,102 +4,87 @@ import pandas_ta as ta
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث تلقائي كل دقيقتين لمواكبة الشموع
-st_autorefresh(interval=120000, key="mega_spx_radar_v9")
+# تحديث تلقائي كل دقيقتين
+st_autorefresh(interval=120000, key="sniper_radar_v11")
 
-st.set_page_config(page_title="رادار هادي V9", layout="wide")
-st.markdown("<h1 style='text-align: center; color: white; background: linear-gradient(to right, #1e3c72, #2a5298); padding: 15px; border-radius: 10px;'>🚀 رادار القناص: SPX والأسهم (V9)</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="رادار الصفقات المضمونة", layout="wide")
 
-# --- 1. القائمة المحدثة (استخدام SPY بدلاً من ^GSPC لإظهار الألوان) ---
+# --- قائمة الأسهم ---
 STOCKS = {
-    '📊 مؤشر سباكس (SPY/SPX)': 'SPY', 
-    'أبل (Apple)': 'AAPL', 
-    'نيفيديا (Nvidia)': 'NVDA', 
-    'تسلا (Tesla)': 'TSLA', 
-    'مايكروسوفت (Microsoft)': 'MSFT', 
-    'أمازون (Amazon)': 'AMZN', 
-    'ميتا (Meta)': 'META', 
-    'غوغل (Google)': 'GOOGL', 
-    'نيو (NIO)': 'NIO', 
-    'لوسيد (Lucid)': 'LCID',
-    'AMD (AMD)': 'AMD', 
-    'بالانتير (Palantir)': 'PLTR', 
-    'كوين بيز (Coinbase)': 'COIN', 
-    'نتفليكس (Netflix)': 'NFLX'
+    '📈 سباكس (SPY)': 'SPY', 'أبل': 'AAPL', 'نيفيديا': 'NVDA', 
+    'تسلا': 'TSLA', 'مايكروسوفت': 'MSFT', 'أمازون': 'AMZN', 
+    'ميتا': 'META', 'غوغل': 'GOOGL', 'نيو': 'NIO', 
+    'لوسيد': 'LCID', 'بالانتير': 'PLTR', 'AMD': 'AMD'
 }
 
-results = []
-my_bar = st.progress(0)
+all_data = []
+golden_calls = []
+golden_puts = []
 
-# --- 2. محرك التحليل الفني ---
-for i, (name, sym) in enumerate(STOCKS.items()):
-    try:
-        # جلب البيانات
-        data = yf.download(sym, period='5d', interval='5m', progress=False)
-        if not data.empty and len(data) > 30:
-            data = data.ffill().bfill()
-            close_p = data['Close'].squeeze()
-            volumes = data['Volume'].squeeze()
-            curr_p = float(close_p.iloc[-1])
-            
-            # المؤشرات الفنية
-            rsi_val = float(ta.rsi(close_p, length=14).iloc[-1])
-            sma_5 = float(ta.sma(close_p, length=5).iloc[-1])
-            sma_13 = float(ta.sma(close_p, length=13).iloc[-1])
-            macd = ta.macd(close_p)
-            macd_h = float(macd['MACDh_12_26_9'].iloc[-1])
-            
-            # حماية الاختراق (الشموع السابقة)
-            prev_high = float(data['High'].squeeze().iloc[-2])
-            prev_low = float(data['Low'].squeeze().iloc[-2])
-            
-            # قوة السيولة (حساسية عالية جداً 1.2x)
-            avg_vol = volumes.rolling(window=10).mean().iloc[-1]
-            vol_ratio = volumes.iloc[-1] / avg_vol
-            is_explosion = vol_ratio > 1.2
-
-            status, color = "⚪ هدوء", "transparent"
-            
-            # --- منطق الألوان (الكرنفال) ---
-            
-            # أولاً: تشبع بيعي أو شرائي (مراقبة)
-            if rsi_val < 35: status, color = "🟢 رخيص (مراقبة Call)", "#2E7D32"
-            elif rsi_val > 65: status, color = "🟠 متضخم (مراقبة Put)", "#E65100"
-
-            # ثانياً: انفجار السيولة (فسفوري) - يطغى على المراقبة
-            if is_explosion:
-                status, color = "⚡ انفجار سيولة", "#CCFF00"
-            
-            # ثالثاً: تأكيد الكول أو البوت (الأولوية القصوى)
-            if (curr_p > prev_high) and (sma_5 > sma_13) and (macd_h > 0):
-                status, color = "🔵 دخول Call مؤكد", "#0D47A1"
-            elif (curr_p < prev_low) and (sma_5 < sma_13) and (macd_h < 0):
-                status, color = "🔴 دخول Put مؤكد", "#B71C1C"
-
-            results.append({
-                "الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}",
-                "قوة السيولة": f"{vol_ratio:.2f}x", "RSI": round(rsi_val, 1),
-                "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط", "_color": color
-            })
-    except: continue
-    my_bar.progress((i + 1) / len(STOCKS))
-
-# --- 3. عرض الجدول ---
-if results:
-    df = pd.DataFrame(results)
-    def apply_style(row):
-        txt_color = "black" if row['_color'] == "#CCFF00" else "white"
-        if row['_color'] != "transparent":
-            return [f'background-color: {row["_color"]}; color: {txt_color}; font-weight: bold'] * len(row)
-        return [''] * len(row)
+# --- محرك التحليل ---
+with st.spinner('جاري قنص الفرص...'):
+    # جلب بيانات SPY أولاً لتحديد اتجاه السوق
+    spy_data = yf.download('SPY', period='2d', interval='5m', progress=False)
+    spy_close = spy_data['Close'].iloc[-1]
+    spy_prev_high = spy_data['High'].iloc[-2]
+    spy_prev_low = spy_data['Low'].iloc[-2]
     
-    st.dataframe(df.style.apply(apply_style, axis=1), 
-                 column_order=("الأداة", "الحالة", "السعر", "قوة السيولة", "RSI", "الاتجاه"),
-                 use_container_width=True, hide_index=True, height=600)
+    spy_status = "⚪ أبيض"
+    if spy_close > spy_prev_high: spy_status = "🔵 أزرق"
+    elif spy_close < spy_prev_low: spy_status = "🔴 أحمر"
 
-st.sidebar.markdown("""
-### 💡 كيف تستخدم رادار السباكس؟
-1. **راقب SPY أولاً:** إذا كان لونه **أزرق 🔵**، ففرص الـ Call في بقية الأسهم قوية جداً.
-2. **السيولة هي السر:** إذا رأيت **2.00x** في خانة قوة السيولة، فهذا انفجار حقيقي.
-3. **تطابق الإشارة:** أفضل دخول عندما يكون السهم والسباكس بنفس اللون.
-""")
+    for name, sym in STOCKS.items():
+        try:
+            df = yf.download(sym, period='5d', interval='5m', progress=False)
+            if df.empty: continue
+            
+            close_p = df['Close'].squeeze()
+            curr_p = float(close_p.iloc[-1])
+            prev_high = float(df['High'].squeeze().iloc[-2])
+            prev_low = float(df['Low'].squeeze().iloc[-2])
+            
+            # السيولة
+            vol = df['Volume'].squeeze()
+            vol_ratio = vol.iloc[-1] / vol.rolling(10).mean().iloc[-1]
+            is_explosion = vol_ratio > 1.25
+            
+            # المؤشرات
+            rsi = ta.rsi(close_p, length=14).iloc[-1]
+            sma5 = ta.sma(close_p, 5).iloc[-1]
+            sma13 = ta.sma(close_p, 13).iloc[-1]
+            
+            status, color = "⚪ هدوء", "white"
+            
+            # فحص الشروط المضمونة (شروط هادي)
+            is_call = (curr_p > prev_high) and (sma5 > sma13) and is_explosion
+            is_put = (curr_p < prev_low) and (sma5 < sma13) and is_explosion
+            
+            if is_call:
+                status, color = "🔵 دخول Call مؤكد", "#0D47A1"
+                if spy_status in ["🔵 أزرق", "⚪ أبيض"]:
+                    golden_calls.append(name)
+            elif is_put:
+                status, color = "🔴 دخول Put مؤكد", "#B71C1C"
+                if spy_status in ["🔴 أحمر", "⚪ أبيض"]:
+                    golden_puts.append(name)
+            elif is_explosion:
+                status, color = "⚡ انفجار سيولة", "#CCFF00"
+
+            all_data.append({"الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}", "السيولة": f"{vol_ratio:.2f}x", "RSI": int(rsi), "_color": color})
+        except: continue
+
+# --- العرض المرئي ---
+st.markdown(f"### 🎯 حالة السوق الحالي (SPY): {spy_status}")
+
+col1, col2 = st.columns(2)
+with col1:
+    st.success(f"✅ فرص Call مضمونة: {len(golden_calls)}")
+    for s in golden_calls: st.button(f"🔥 {s} - جـاهز للكول", key=s+"c")
+
+with col2:
+    st.error(f"✅ فرص Put مضمونة: {len(golden_puts)}")
+    for s in golden_puts: st.button(f"📉 {s} - جـاهز للبوت", key=s+"p")
+
+st.divider()
+df_final = pd.DataFrame(all_data)
+st.dataframe(df_final.style.apply(lambda x: [f'background-color: {x["_color"]}; color: {"black" if x["_color"]=="#CCFF00" else "white"}' for _ in x], axis=1), use_container_width=True, hide_index=True)
