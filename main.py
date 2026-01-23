@@ -2,29 +2,21 @@ import streamlit as st
 import yfinance as yf
 import pandas_ta as ta
 import pandas as pd
-import requests
 from streamlit_autorefresh import st_autorefresh
 
-# --- 1. إعدادات التنبيه ---
-TOKEN = "7566263341:AAHadbOMY8BLpQgTj9eujY52mnKQxuawZjY"
-CHAT_ID = "692583333"
+# تحديث تلقائي كل دقيقتين
+st_autorefresh(interval=120000, key="color_carnival_v8")
 
-def send_msg(text):
-    try:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=5)
-    except: pass
+st.set_page_config(page_title="رادار هادي الملون", layout="wide")
+st.markdown("<h1 style='text-align: center; color: white; background: linear-gradient(to right, #00c6ff, #0072ff); padding: 10px; border-radius: 10px;'>🌈 رادار القناص: نظام الألوان المتكامل</h1>", unsafe_allow_html=True)
 
-st_autorefresh(interval=120000, key="explosion_radar_v6")
-
-st.set_page_config(page_title="رادار هادي المتفجر", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #CCFF00; background-color: black;'>💥 رادار القناص: نظام رصد الانفجار اللحظي</h1>", unsafe_allow_html=True)
-
-# --- 2. القائمة الموسعة ---
+# --- قائمة الشركات ---
 STOCKS = {
-    '📈 مؤشر S&P 500': '^GSPC', 'أبل': 'AAPL', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 
-    'أمازون': 'AMZN', 'ميتا': 'META', 'غوغل': 'GOOGL', 'نيو': 'NIO', 'لوسيد': 'LCID',
-    'AMD': 'AMD', 'بالانتير': 'PLTR', 'كوين بيز': 'COIN', 'نتفليكس': 'NFLX'
+    '📈 مؤشر S&P 500 (SPX)': '^GSPC', 'أبل (Apple)': 'AAPL', 'نيفيديا (Nvidia)': 'NVDA', 
+    'تسلا (Tesla)': 'TSLA', 'مايكروسوفت (Microsoft)': 'MSFT', 'أمازون (Amazon)': 'AMZN', 
+    'ميتا (Meta)': 'META', 'غوغل (Google)': 'GOOGL', 'نيو (NIO)': 'NIO', 
+    'لوسيد (Lucid)': 'LCID', 'AMD (AMD)': 'AMD', 'بالانتير (Palantir)': 'PLTR', 
+    'كوين بيز (Coinbase)': 'COIN', 'نتفليكس (Netflix)': 'NFLX'
 }
 
 results = []
@@ -47,48 +39,52 @@ for i, (name, sym) in enumerate(STOCKS.items()):
             prev_high = float(data['High'].squeeze().iloc[-2])
             prev_low = float(data['Low'].squeeze().iloc[-2])
             
-            # حساب قوة الانفجار
+            # قوة السيولة (حساسية عالية)
             vol_ratio = volumes.iloc[-1] / volumes.rolling(window=10).mean().iloc[-1]
-            is_explosion = vol_ratio > 1.8  # انفجار حقيقي
+            is_explosion = vol_ratio > 1.25 
 
-            status, color = "⚪ انتظار", "transparent"
+            status, color = "⚪ هدوء", "transparent"
             
-            # --- منطق الألوان الجديد ---
-            # 1. انفجار سيولة (فسفوري) - تنبيه مبكر جداً
+            # --- منطق الألوان المتعدد (الكرنفال) ---
+            
+            # 1. حالة التشبع (مراقبة)
+            if rsi_val < 35:
+                status, color = "🟢 رخيص (مراقبة Call)", "#2E7D32"
+            elif rsi_val > 65:
+                status, color = "🟠 متضخم (مراقبة Put)", "#E65100"
+
+            # 2. حالة الانفجار (أولوية أعلى)
             if is_explosion:
-                status, color = "⚡ انفجار سيولة (تأهب)", "#CCFF00" # لون فسفوري
+                status, color = "⚡ انفجار سيولة", "#CCFF00"
             
-            # 2. تأكيد الدخول Call (أزرق) - شروط كاملة
-            if rsi_val < 38 and (curr_p > prev_high) and (sma_5 > sma_13):
+            # 3. حالة التأكيد (الأولوية القصوى - دخول)
+            if (curr_p > prev_high) and (sma_5 > sma_13) and (macd_h > 0) and rsi_val < 50:
                 status, color = "🔵 دخول Call مؤكد", "#0D47A1"
-                send_msg(f"✅ Call confirmed: {name}")
-
-            # 3. تأكيد الدخول Put (أحمر) - شروط كاملة
-            elif rsi_val > 62 and (curr_p < prev_low) and (sma_5 < sma_13):
+            elif (curr_p < prev_low) and (sma_5 < sma_13) and (macd_h < 0) and rsi_val > 50:
                 status, color = "🔴 دخول Put مؤكد", "#B71C1C"
-                send_msg(f"🔻 Put confirmed: {name}")
 
             results.append({
                 "الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}",
-                "قوة السيولة": f"{vol_ratio:.1f}x", "RSI": round(rsi_val, 1),
+                "قوة السيولة": f"{vol_ratio:.2f}x", "RSI": round(rsi_val, 1),
                 "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط", "_color": color
             })
     except: continue
     my_bar.progress((i + 1) / len(STOCKS))
 
-# --- 4. العرض الاحترافي ---
+# --- العرض ---
 if results:
     df = pd.DataFrame(results)
     def apply_style(row):
         txt_color = "black" if row['_color'] == "#CCFF00" else "white"
         return [f'background-color: {row["_color"]}; color: {txt_color}; font-weight: bold' if row['_color'] != "transparent" else '' for _ in row]
     
-    styled_df = df.style.apply(apply_style, axis=1)
-    st.dataframe(styled_df, column_order=("الأداة", "الحالة", "السعر", "قوة السيولة", "RSI", "الاتجاه"), use_container_width=True, hide_index=True, height=550)
+    st.dataframe(df.style.apply(apply_style, axis=1), column_order=("الأداة", "الحالة", "السعر", "قوة السيولة", "RSI", "الاتجاه"), use_container_width=True, hide_index=True, height=600)
 
-st.sidebar.markdown(f"""
-### 💡 دليل القناص:
-- **الفسفوري ⚡:** انفجار سيولة مفاجئ (راقب السعر الآن!)
-- **الأزرق 🔵:** إشارة شراء Call مؤكدة.
-- **الأحمر 🔴:** إشارة شراء Put مؤكدة.
+st.sidebar.markdown("""
+### 🎨 خريطة الألوان الجديدة:
+- **الأزرق 🔵:** انفجار + اختراق (وقت الـ **Call**).
+- **الأحمر 🔴:** انفجار + كسر (وقت الـ **Put**).
+- **الفسفوري ⚡:** سيولة ضخمة تدخل الآن.
+- **الأخضر 🟢:** السهم رخيص (صيد قادم).
+- **البرتقالي 🟠:** السهم غالي (تصريف قادم).
 """)
