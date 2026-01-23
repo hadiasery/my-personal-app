@@ -15,25 +15,22 @@ def send_msg(text):
         requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: pass
 
-st_autorefresh(interval=60000, key="desktop_radar_v3")
+st_autorefresh(interval=60000, key="desktop_radar_v4")
 
 st.set_page_config(page_title="منصة هادي الاحترافية", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 رادار الأسهم العالمي - لوحة التحكم</h1>", unsafe_allow_index=True)
+# التصحيح هنا: تم تغيير unsafe_allow_index إلى unsafe_allow_html
+st.markdown("<h1 style='text-align: center; color: #1E88E5;'>📊 رادار الأسهم العالمي - لوحة التحكم</h1>", unsafe_allow_html=True)
 
-# --- 2. القائمة الموسعة (أكثر من 50 شركة) ---
+# --- 2. القائمة الموسعة ---
 US_STOCKS = {
     'أبل': 'AAPL', 'مايكروسوفت': 'MSFT', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 'أمازون': 'AMZN',
     'ميتا': 'META', 'جوجل': 'GOOGL', 'نتفلكس': 'NFLX', 'أيه إم دي': 'AMD', 'بايبال': 'PYPL',
-    'أدوبي': 'ADBE', 'سيسكو': 'CSCO', 'إنتل': 'INTC', 'بايدو': 'BIDU', 'لوسيد': 'LCID',
-    'ريفيان': 'RIVN', 'علي بابا': 'BABA', 'ديزني': 'DIS', 'كوكاكولا': 'KO', 'ستارباكس': 'SBUX'
+    'أدوبي': 'ADBE', 'سيسكو': 'CSCO', 'إنتل': 'INTC', 'بايدو': 'BIDU', 'لوسيد': 'LCID'
 }
 
 SA_STOCKS = {
     'أرامكو': '2222.SR', 'الراجحي': '1120.SR', 'الأهلي': '1180.SR', 'stc': '7010.SR',
-    'سابك': '2010.SR', 'معادن': '1211.SR', 'الإنماء': '1150.SR', 'لوبريف': '2223.SR',
-    'البحري': '4030.SR', 'كيان': '2310.SR', 'سليمان الحبيب': '4013.SR', 'أكوا باور': '2082.SR',
-    'علم': '7203.SR', 'جرير': '4190.SR', 'موبايلي': '7020.SR', 'صافولا': '2050.SR',
-    'التصنيع': '2060.SR', 'دار الأركان': '4300.SR', 'معادن': '1211.SR', 'بنك البلاد': '1140.SR'
+    'سابك': '2010.SR', 'معادن': '1211.SR', 'الإنماء': '1150.SR', 'لوبريف': '2223.SR'
 }
 
 market = st.sidebar.radio("اختر السوق لمراقبته:", ["الأمريكي (مباشر الآن)", "السعودي"])
@@ -42,7 +39,7 @@ stocks_dict = US_STOCKS if market == "الأمريكي (مباشر الآن)" el
 results = []
 my_bar = st.progress(0)
 
-# --- 3. المعالجة الذكية ---
+# --- 3. المعالجة ---
 for i, (name, sym) in enumerate(stocks_dict.items()):
     try:
         data = yf.download(sym, period='2d', interval='1m', progress=False)
@@ -63,22 +60,12 @@ for i, (name, sym) in enumerate(stocks_dict.items()):
     except: continue
     my_bar.progress((i + 1) / len(stocks_dict))
 
-# --- 4. العرض الاحترافي بالألوان ---
+# --- 4. العرض ---
 if results:
     df = pd.DataFrame(results)
-    
     def apply_style(row):
         if row['الحالة'] == "🟢 دخول الآن":
             return ['background-color: #2ecc71; color: white; font-weight: bold'] * len(row)
         return [''] * len(row)
 
-    st.dataframe(
-        df.style.apply(apply_style, axis=1),
-        use_container_width=True,
-        hide_index=True,
-        height=600
-    )
-else:
-    st.warning("🔄 لا توجد بيانات. تأكد من افتتاح السوق.")
-
-st.markdown("<p style='text-align: center;'>تحديث تلقائي كل دقيقة | تم التحسين للعرض المكتبي</p>", unsafe_allow_index=True)
+    st.dataframe(df.style.apply(apply_style, axis=1), use_container_width=True, hide_index=True)
