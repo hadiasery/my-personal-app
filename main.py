@@ -1,72 +1,74 @@
 import streamlit as st
 import yfinance as yf
 import pandas_ta as ta
+import pandas as pd
 import requests
 from streamlit_autorefresh import st_autorefresh
 
-# --- إعداداتك الخاصة (جاهزة) ---
-TELEGRAM_TOKEN = "7566263341:AAHadbOMY8BLpQgTj9eujY52mnKQxuawZjY"
-TELEGRAM_CHAT_ID = "692583333"
+# --- إعدادات التنبيه ---
+TOKEN = "7566263341:AAHadbOMY8BLpQgTj9eujY52mnKQxuawZjY"
+CHAT_ID = "692583333"
 
-# دالة إرسال التلغرام
-def send_telegram_msg(message):
+def send_msg(text):
     try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        params = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-        requests.get(url, params=params)
-    except:
-        pass
+        requests.get(f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT_ID}&text={text}")
+    except: pass
 
-# --- تفعيل التحديث التلقائي (كل 60 ثانية) ---
-# هذا الكود يجعل التطبيق يحدث نفسه آلياً بدون تدخل منك
-st_autorefresh(interval=60000, key="stock_monitor")
+# تحديث تلقائي كل دقيقة
+st_autorefresh(interval=60000, key="horizontal_radar")
 
-st.set_page_config(page_title="رادار التداول", layout="centered")
-st.title("📈 رادار الأسهم اللحظي")
+st.set_page_config(page_title="رادار هادي - عرض أفقي", layout="wide")
+st.title("📊 رادار مراقبة الأسواق")
 
-# --- قائمة الشركات (تم توسيعها) ---
+# --- القوائم (الاسم والرمز) ---
+US_STOCKS = {
+    'أبل': 'AAPL', 'مايكروسوفت': 'MSFT', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 'أمازون': 'AMZN',
+    'ميتا': 'META', 'جوجل': 'GOOGL', 'نتفلكس': 'NFLX', 'أيه إم دي': 'AMD', 'بايبال': 'PYPL'
+}
+
 SA_STOCKS = {
-    'الراجحي': '1120.SR', 'أرامكو': '2222.SR', 'الأهلي': '1180.SR', 'stc': '7010.SR', 
+    'أرامكو': '2222.SR', 'الراجحي': '1120.SR', 'الأهلي': '1180.SR', 'stc': '7010.SR',
     'سابك': '2010.SR', 'معادن': '1211.SR', 'الإنماء': '1150.SR', 'لوبريف': '2223.SR'
 }
-US_STOCKS = {
-    'Nvidia': 'NVDA', 'Apple': 'AAPL', 'Tesla': 'TSLA', 'Microsoft': 'MSFT', 
-    'Amazon': 'AMZN', 'Meta': 'META', 'Google': 'GOOGL', 'AMD': 'AMD'
-}
 
-market = st.sidebar.radio("اختر السوق", ["السعودي", "الأمريكي"])
-stocks = SA_STOCKS if market == "السعودي" else US_STOCKS
-selected_label = st.selectbox("اختر السهم للمراقبة:", list(stocks.keys()))
-symbol = stocks[selected_label]
+market = st.sidebar.radio("اختر السوق:", ["الأمريكي", "السعودي"])
+stocks_dict = US_STOCKS if market == "الأمريكي" else SA_STOCKS
 
-# جلب بيانات الدقيقة الواحدة
-df = yf.download(symbol, period='1d', interval='1m', progress=False)
+results = []
+my_bar = st.progress(0)
 
-if not df.empty:
-    # التحليل الفني
-    df['RSI'] = ta.rsi(df['Close'], length=14)
-    current_price = df['Close'].iloc[-1]
-    rsi_val = df['RSI'].iloc[-1]
+for i, (name, sym) in enumerate(stocks_dict.items()):
+    data = yf.download(sym, period='1d', interval='1m', progress=False)
+    if not data.empty and len(data) > 10:
+        price = data['Close'].iloc[-1]
+        rsi = ta.rsi(data['Close'], length=14).iloc[-1] if len(data) > 14 else 50
+        
+        # منطق التنبيه
+        is_entry = rsi < 35
+        status = "🟢 دخول الآن" if is_entry else "⚪ انتظار"
+        entry_price = f"{price:.2f}" if is_entry else "-" # يظهر السعر فقط عند الدخول
+        
+        if is_entry:
+            send_msg(f"🚀 إشارة شراء: {name}\nالسعر: {entry_price}")
+            
+        results.append({
+            "اسم الشركة": name,
+            "الحالة": status,
+            "سعر الدخول المقترح": entry_price,
+            "RSI": round(float(rsi), 1)
+        })
+    my_bar.progress((i + 1) / len(stocks_dict))
+
+# عرض الجدول بشكل أفقي ومنظم
+if results:
+    df = pd.DataFrame(results)
     
-    # عرض السعر الحالي
-    st.metric(f"سعر {selected_label} (لحظي)", f"{current_price:.2f}")
+    # تنسيق الألوان: صفوف "الدخول" ستكون باللون الأخضر
+    def highlight_entry(row):
+        return ['background-color: #d4edda' if row['الحالة'] == "🟢 دخول الآن" else '' for _ in row]
 
-    # --- منطق التنبيهات الذكي ---
-    if rsi_val < 30:
-        msg = f"🟢 فرصة شراء: {selected_label}\nالسعر: {current_price:.2f}\nRSI: {rsi_val:.2f}"
-        st.success("🚨 تم رصد فرصة شراء!")
-        send_telegram_msg(msg)
-        # صوت التنبيه
-        st.components.v1.html('<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3"></audio>', height=0)
-    
-    elif rsi_val > 70:
-        msg = f"🔴 تنبيه بيع: {selected_label}\nالسعر: {current_price:.2f}\nRSI: {rsi_val:.2f}"
-        st.warning("🚨 السهم في منطقة بيع!")
-        send_telegram_msg(msg)
-
-    # الرسم البياني
-    st.line_chart(df['Close'])
-    st.caption(f"آخر تحديث آلي: {df.index[-1].strftime('%H:%M:%S')}")
-
+    st.table(df.style.apply(highlight_entry, axis=1))
 else:
-    st.info("بانتظار بيانات السوق (تأكد من فتح السوق حالياً)")
+    st.info("🔄 بانتظار افتتاح السوق لجلب الأسعار اللحظية...")
+
+st.caption("ملاحظة: سعر الدخول يظهر فقط عندما يعطي الرادار إشارة 'دخول الآن'.")
