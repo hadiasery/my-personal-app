@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 from streamlit_autorefresh import st_autorefresh
 
-# --- إعدادات التنبيه ---
+# --- 1. إعدادات التنبيه ---
 TOKEN = "7566263341:AAHadbOMY8BLpQgTj9eujY52mnKQxuawZjY"
 CHAT_ID = "692583333"
 
@@ -15,21 +15,24 @@ def send_msg(text):
         requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: pass
 
-st_autorefresh(interval=120000, key="pro_trader_radar")
+st_autorefresh(interval=120000, key="mega_radar_v5")
 
-st.set_page_config(page_title="رادار هادي الاحترافي", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #1E88E5;'>🎯 رادار هادي: Call & Put + S&P 500</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="رادار هادي العملاق", layout="wide")
+st.markdown("<h1 style='text-align: center; color: #D32F2F;'>🚀 رادار القناص: Call & Put (القائمة الموسعة)</h1>", unsafe_allow_html=True)
 
-# --- قائمة الأسهم والمؤشر ---
+# --- 2. القائمة الموسعة (18 شركة + المؤشر) ---
 STOCKS = {
     '📈 مؤشر S&P 500': '^GSPC',
     'أبل': 'AAPL', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 'مايكروسوفت': 'MSFT', 
-    'أمازون': 'AMZN', 'لوسيد': 'LCID', 'نيو': 'NIO'
+    'أمازون': 'AMZN', 'ميتا (Facebook)': 'META', 'غوغل': 'GOOGL', 'نتفليكس': 'NFLX',
+    'AMD': 'AMD', 'إنتل': 'INTC', 'لوسيد': 'LCID', 'نيو': 'NIO', 'بالانتير': 'PLTR',
+    'كوين بيز': 'COIN', 'شوبيفاي': 'SHOP', 'مودرنا': 'MRNA', 'ديزني': 'DIS'
 }
 
 results = []
 my_bar = st.progress(0)
 
+# --- 3. التحليل الفني ---
 for i, (name, sym) in enumerate(STOCKS.items()):
     try:
         data = yf.download(sym, period='7d', interval='5m', progress=False)
@@ -41,83 +44,44 @@ for i, (name, sym) in enumerate(STOCKS.items()):
             
             # المؤشرات
             rsi_val = float(ta.rsi(close_prices, length=14).iloc[-1])
-            prev_rsi = float(ta.rsi(close_prices, length=14).iloc[-2])
             sma_5 = float(ta.sma(close_prices, length=5).iloc[-1])
             sma_13 = float(ta.sma(close_prices, length=13).iloc[-1])
-            macd_hist = float(ta.macd(close_prices)['MACDh_12_26_9'].iloc[-1])
+            macd_h = float(ta.macd(close_prices)['MACDh_12_26_9'].iloc[-1])
             
-            # بيانات الشمعة السابقة للحماية
+            # حماية (قمة وقاع سابقة)
             prev_high = float(data['High'].squeeze().iloc[-2])
             prev_low = float(data['Low'].squeeze().iloc[-2])
             
             # قوة الانفجار
-            avg_vol = volumes.rolling(window=10).mean().iloc[-1]
-            vol_ratio = volumes.iloc[-1] / avg_vol
-            explosion_power = "🔥 عالية" if vol_ratio > 1.5 else "⚠️ عادية" if vol_ratio > 1.0 else "❄️ ضعيفة"
+            vol_ratio = volumes.iloc[-1] / volumes.rolling(window=10).mean().iloc[-1]
+            explosion = "🔥 عالية" if vol_ratio > 1.5 else "⚠️ عادية" if vol_ratio > 1.0 else "❄️ ضعيفة"
 
-            # --- المنطق البرمجي المزدوج (Call & Put) ---
-            status = "⚪ انتظار"
-            color = "transparent"
+            status, color = "⚪ انتظار", "transparent"
             
-            # 1. منطق الـ Call (اختراق للأعلى)
+            # منطق الـ Call
             if rsi_val < 35:
-                if (curr_p > prev_high) and (sma_5 > sma_13) and (macd_hist > 0):
-                    status = "🔵 دخول Call مؤكد"
-                    color = "#0D47A1"
-                    send_msg(f"🚀 إشارة Call: {name}\nالسعر: {curr_p:.2f}\nالقوة: {explosion_power}")
-                else:
-                    status = "🟢 مراقبة Call"
-                    color = "#2E7D32"
+                if (curr_p > prev_high) and (sma_5 > sma_13) and (macd_h > 0):
+                    status, color = "🔵 دخول Call مؤكد", "#0D47A1"
+                    send_msg(f"🚀 Call Signal: {name} at {curr_p:.2f}")
+                else: status, color = "🟢 مراقبة Call", "#2E7D32"
 
-            # 2. منطق الـ Put (كسر للأدنى)
+            # منطق الـ Put
             elif rsi_val > 65:
-                if (curr_p < prev_low) and (sma_5 < sma_13) and (macd_hist < 0):
-                    status = "🔴 دخول Put مؤكد"
-                    color = "#B71C1C"
-                    send_msg(f"📉 إشارة Put: {name}\nالسعر: {curr_p:.2f}\nالقوة: {explosion_power}")
-                else:
-                    status = "🟠 مراقبة Put"
-                    color = "#E65100"
+                if (curr_p < prev_low) and (sma_5 < sma_13) and (macd_h < 0):
+                    status, color = "🔴 دخول Put مؤكد", "#B71C1C"
+                    send_msg(f"📉 Put Signal: {name} at {curr_p:.2f}")
+                else: status, color = "🟠 مراقبة Put", "#E65100"
                 
-            results.append({
-                "الأداة": name,
-                "الحالة": status,
-                "السعر": f"{curr_p:.2f}",
-                "قوة الانفجار": explosion_power,
-                "RSI": round(rsi_val, 1),
-                "الاتجاه": "📈 صاعد" if macd_hist > 0 else "📉 هابط",
-                "_color": color
-            })
+            results.append({"الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}", "الانفجار": explosion, "RSI": round(rsi_val, 1), "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط", "_color": color})
     except: continue
     my_bar.progress((i + 1) / len(STOCKS))
 
-# --- 4. العرض بصورة احترافية ---
+# --- 4. العرض ---
 if results:
     df = pd.DataFrame(results)
-    
     def apply_style(row):
-        # هنا الدالة ستجد عمود _color لأنه لا يزال موجوداً في df
-        if row['_color'] != "transparent":
-            return [f'background-color: {row["_color"]}; color: white; font-weight: bold'] * len(row)
-        return [''] * len(row)
+        return [f'background-color: {row["_color"]}; color: white; font-weight: bold' if row['_color'] != "transparent" else '' for _ in row]
+    
+    st.dataframe(df.style.apply(apply_style, axis=1), column_order=("الأداة", "الحالة", "السعر", "الانفجار", "RSI", "الاتجاه"), use_container_width=True, hide_index=True, height=600)
 
-    # التعديل الجوهري هنا: نطبق التلوين على df بالكامل أولاً
-    styled_df = df.style.apply(apply_style, axis=1)
-
-    # ثم عند العرض نحدد فقط الأعمدة التي نريدها (بدون _color)
-    st.dataframe(
-        styled_df,
-        column_order=("الأداة", "الحالة", "السعر", "قوة الانفجار", "RSI", "الاتجاه"),
-        use_container_width=True, 
-        hide_index=True
-    )
-else:
-    st.info("🔄 بانتظار تحديثات السوق... تأكد من أن السوق مفتوح حالياً.")
-
-st.sidebar.markdown("""
-### 💡 دليل الألوان:
-- **الأزرق 🔵:** شراء Call (اختراق حقيقي).
-- **الأحمر 🔴:** شراء Put (كسر حقيقي).
-- **الأخضر 🟢:** السهم رخيص (انتظر الاختراق).
-- **البرتقالي 🟠:** السهم متضخم (انتظر الكسر).
-""")
+st.caption("نظام القناص المطور V5 - يعمل الآن على 18 شركة ومؤشر رئيسي.")
