@@ -91,15 +91,28 @@ for i, (name, sym) in enumerate(STOCKS.items()):
     except: continue
     my_bar.progress((i + 1) / len(STOCKS))
 
-# --- العرض بصورة احترافية ---
+# --- 4. العرض بصورة احترافية ---
 if results:
     df = pd.DataFrame(results)
+    
     def apply_style(row):
+        # هنا الدالة ستجد عمود _color لأنه لا يزال موجوداً في df
         if row['_color'] != "transparent":
             return [f'background-color: {row["_color"]}; color: white; font-weight: bold'] * len(row)
         return [''] * len(row)
 
-    st.dataframe(df.drop(columns=['_color']).style.apply(apply_style, axis=1), use_container_width=True, hide_index=True)
+    # التعديل الجوهري هنا: نطبق التلوين على df بالكامل أولاً
+    styled_df = df.style.apply(apply_style, axis=1)
+
+    # ثم عند العرض نحدد فقط الأعمدة التي نريدها (بدون _color)
+    st.dataframe(
+        styled_df,
+        column_order=("الأداة", "الحالة", "السعر", "قوة الانفجار", "RSI", "الاتجاه"),
+        use_container_width=True, 
+        hide_index=True
+    )
+else:
+    st.info("🔄 بانتظار تحديثات السوق... تأكد من أن السوق مفتوح حالياً.")
 
 st.sidebar.markdown("""
 ### 💡 دليل الألوان:
