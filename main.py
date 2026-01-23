@@ -15,73 +15,80 @@ def send_msg(text):
         requests.get(url, params={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: pass
 
-st_autorefresh(interval=120000, key="mega_radar_v5")
+st_autorefresh(interval=120000, key="explosion_radar_v6")
 
-st.set_page_config(page_title="رادار هادي العملاق", layout="wide")
-st.markdown("<h1 style='text-align: center; color: #D32F2F;'>🚀 رادار القناص: Call & Put (القائمة الموسعة)</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="رادار هادي المتفجر", layout="wide")
+st.markdown("<h1 style='text-align: center; color: #CCFF00; background-color: black;'>💥 رادار القناص: نظام رصد الانفجار اللحظي</h1>", unsafe_allow_html=True)
 
-# --- 2. القائمة الموسعة (18 شركة + المؤشر) ---
+# --- 2. القائمة الموسعة ---
 STOCKS = {
-    '📈 مؤشر S&P 500': '^GSPC',
-    'أبل': 'AAPL', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 'مايكروسوفت': 'MSFT', 
-    'أمازون': 'AMZN', 'ميتا (Facebook)': 'META', 'غوغل': 'GOOGL', 'نتفليكس': 'NFLX',
-    'AMD': 'AMD', 'إنتل': 'INTC', 'لوسيد': 'LCID', 'نيو': 'NIO', 'بالانتير': 'PLTR',
-    'كوين بيز': 'COIN', 'شوبيفاي': 'SHOP', 'مودرنا': 'MRNA', 'ديزني': 'DIS'
+    '📈 مؤشر S&P 500': '^GSPC', 'أبل': 'AAPL', 'نيفيديا': 'NVDA', 'تسلا': 'TSLA', 
+    'أمازون': 'AMZN', 'ميتا': 'META', 'غوغل': 'GOOGL', 'نيو': 'NIO', 'لوسيد': 'LCID',
+    'AMD': 'AMD', 'بالانتير': 'PLTR', 'كوين بيز': 'COIN', 'نتفليكس': 'NFLX'
 }
 
 results = []
 my_bar = st.progress(0)
 
-# --- 3. التحليل الفني ---
 for i, (name, sym) in enumerate(STOCKS.items()):
     try:
         data = yf.download(sym, period='7d', interval='5m', progress=False)
         if not data.empty and len(data) > 30:
             data = data.ffill().bfill()
-            close_prices = data['Close'].squeeze()
+            close_p = data['Close'].squeeze()
             volumes = data['Volume'].squeeze()
-            curr_p = float(close_prices.iloc[-1])
+            curr_p = float(close_p.iloc[-1])
             
             # المؤشرات
-            rsi_val = float(ta.rsi(close_prices, length=14).iloc[-1])
-            sma_5 = float(ta.sma(close_prices, length=5).iloc[-1])
-            sma_13 = float(ta.sma(close_prices, length=13).iloc[-1])
-            macd_h = float(ta.macd(close_prices)['MACDh_12_26_9'].iloc[-1])
-            
-            # حماية (قمة وقاع سابقة)
+            rsi_val = float(ta.rsi(close_p, length=14).iloc[-1])
+            sma_5 = float(ta.sma(close_p, length=5).iloc[-1])
+            sma_13 = float(ta.sma(close_p, length=13).iloc[-1])
+            macd_h = float(ta.macd(close_p)['MACDh_12_26_9'].iloc[-1])
             prev_high = float(data['High'].squeeze().iloc[-2])
             prev_low = float(data['Low'].squeeze().iloc[-2])
             
-            # قوة الانفجار
+            # حساب قوة الانفجار
             vol_ratio = volumes.iloc[-1] / volumes.rolling(window=10).mean().iloc[-1]
-            explosion = "🔥 عالية" if vol_ratio > 1.5 else "⚠️ عادية" if vol_ratio > 1.0 else "❄️ ضعيفة"
+            is_explosion = vol_ratio > 1.8  # انفجار حقيقي
 
             status, color = "⚪ انتظار", "transparent"
             
-            # منطق الـ Call
-            if rsi_val < 35:
-                if (curr_p > prev_high) and (sma_5 > sma_13) and (macd_h > 0):
-                    status, color = "🔵 دخول Call مؤكد", "#0D47A1"
-                    send_msg(f"🚀 Call Signal: {name} at {curr_p:.2f}")
-                else: status, color = "🟢 مراقبة Call", "#2E7D32"
+            # --- منطق الألوان الجديد ---
+            # 1. انفجار سيولة (فسفوري) - تنبيه مبكر جداً
+            if is_explosion:
+                status, color = "⚡ انفجار سيولة (تأهب)", "#CCFF00" # لون فسفوري
+            
+            # 2. تأكيد الدخول Call (أزرق) - شروط كاملة
+            if rsi_val < 38 and (curr_p > prev_high) and (sma_5 > sma_13):
+                status, color = "🔵 دخول Call مؤكد", "#0D47A1"
+                send_msg(f"✅ Call confirmed: {name}")
 
-            # منطق الـ Put
-            elif rsi_val > 65:
-                if (curr_p < prev_low) and (sma_5 < sma_13) and (macd_h < 0):
-                    status, color = "🔴 دخول Put مؤكد", "#B71C1C"
-                    send_msg(f"📉 Put Signal: {name} at {curr_p:.2f}")
-                else: status, color = "🟠 مراقبة Put", "#E65100"
-                
-            results.append({"الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}", "الانفجار": explosion, "RSI": round(rsi_val, 1), "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط", "_color": color})
+            # 3. تأكيد الدخول Put (أحمر) - شروط كاملة
+            elif rsi_val > 62 and (curr_p < prev_low) and (sma_5 < sma_13):
+                status, color = "🔴 دخول Put مؤكد", "#B71C1C"
+                send_msg(f"🔻 Put confirmed: {name}")
+
+            results.append({
+                "الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}",
+                "قوة السيولة": f"{vol_ratio:.1f}x", "RSI": round(rsi_val, 1),
+                "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط", "_color": color
+            })
     except: continue
     my_bar.progress((i + 1) / len(STOCKS))
 
-# --- 4. العرض ---
+# --- 4. العرض الاحترافي ---
 if results:
     df = pd.DataFrame(results)
     def apply_style(row):
-        return [f'background-color: {row["_color"]}; color: white; font-weight: bold' if row['_color'] != "transparent" else '' for _ in row]
+        txt_color = "black" if row['_color'] == "#CCFF00" else "white"
+        return [f'background-color: {row["_color"]}; color: {txt_color}; font-weight: bold' if row['_color'] != "transparent" else '' for _ in row]
     
-    st.dataframe(df.style.apply(apply_style, axis=1), column_order=("الأداة", "الحالة", "السعر", "الانفجار", "RSI", "الاتجاه"), use_container_width=True, hide_index=True, height=600)
+    styled_df = df.style.apply(apply_style, axis=1)
+    st.dataframe(styled_df, column_order=("الأداة", "الحالة", "السعر", "قوة السيولة", "RSI", "الاتجاه"), use_container_width=True, hide_index=True, height=550)
 
-st.caption("نظام القناص المطور V5 - يعمل الآن على 18 شركة ومؤشر رئيسي.")
+st.sidebar.markdown(f"""
+### 💡 دليل القناص:
+- **الفسفوري ⚡:** انفجار سيولة مفاجئ (راقب السعر الآن!)
+- **الأزرق 🔵:** إشارة شراء Call مؤكدة.
+- **الأحمر 🔴:** إشارة شراء Put مؤكدة.
+""")
