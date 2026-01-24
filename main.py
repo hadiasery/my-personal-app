@@ -1,80 +1,93 @@
-import pandas as pd
-import yfinance as yf
-import time
 import streamlit as st
+import yfinance as yf
+import pandas_ta as ta
+import pandas as pd
+from streamlit_autorefresh import st_autorefresh
 
-# قائمة الشركات بعد الحذف
-tickers = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'AMD']
+# تحديث تلقائي كل 10 ثوانٍ لضمان السرعة القصوى
+st_autorefresh(interval=10000, key="mega_spx_radar_v20")
 
-st.set_page_config(page_title="رادار القناص", layout="wide")
-placeholder = st.empty()
+st.set_page_config(page_title="رادار القناص V20 - المختصر", layout="wide")
 
-def get_live_data(ticker_list):
-    data_list = []
-    for ticker in ticker_list:
-        try:
-            stock = yf.Ticker(ticker)
-            df = stock.history(period='2d', interval='1m')
-            if df.empty: continue
+# --- تنسيق الواجهة (الخلفية البيضاء) ---
+st.markdown("""
+    <style>
+    .main { background-color: #ffffff; color: #000000; }
+    div[data-testid="stTable"] { background-color: #f8f9fa; border-radius: 10px; border: 1px solid #dee2e6; }
+    th { background-color: #e9ecef !important; color: #00416d !important; text-align: center !important; border: 1px solid #dee2e6 !important; }
+    td { text-align: center !important; border: 1px solid #dee2e6 !important; color: #333333; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# الترويسة والعداد
+st.markdown(f"""
+    <div style="background-color: #00416d; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #CCFF00; margin-bottom: 20px;">
+        <h2 style="color: white; margin:0; font-family: sans-serif;">🚀 رادار القناص: SPX والأسهم (V20)</h2>
+        <p style="color: #CCFF00; margin:0; font-weight: bold; font-size: 18px;">🔄 تحديث البيانات اللحظي: كل 10 ثوانٍ</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# القائمة المختصرة بعد الحذف
+STOCKS = {
+    '📊 مؤشر سباكس (SPY)': 'SPY', 
+    'أبل (Apple)': 'AAPL', 
+    'نيفيديا (Nvidia)': 'NVDA', 
+    'تسلا (Tesla)': 'TSLA', 
+    'مايكروسوفت (MSFT)': 'MSFT', 
+    'أمازون (AMZN)': 'AMZN', 
+    'ميتا (Meta)': 'META', 
+    'غوغل (Google)': 'GOOGL', 
+    'نيو (NIO)': 'NIO', 
+    'AMD (AMD)': 'AMD'
+}
+
+results = []
+
+# --- محرك التحليل الفني ---
+for name, sym in STOCKS.items():
+    try:
+        ticker = yf.Ticker(sym)
+        curr_p = ticker.fast_info['last_price'] # السعر اللحظي
+        
+        df = ticker.history(period='2d', interval='1m')
+        if not df.empty and len(df) > 1:
+            close_s = df['Close'].squeeze()
+            rsi = float(ta.rsi(close_s, length=14).iloc[-1])
+            macd = ta.macd(close_s)
+            macd_h = float(macd['MACDh_12_26_9'].iloc[-1])
+            p_high = float(df['High'].iloc[-2])
+            p_low = float(df['Low'].iloc[-2])
+            v_ratio = df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1]
             
-            current_price = df['Close'].iloc[-1]
-            prev_price = df['Close'].iloc[-2]
-            high_price = df['High'].iloc[-2]
-            low_price = df['Low'].iloc[-2]
-            volume = df['Volume'].iloc[-1]
-            avg_volume = df['Volume'].mean()
+            status, color = "⚪ هدوء", "transparent"
             
-            exp1 = df['Close'].ewm(span=12, adjust=False).mean()
-            exp2 = df['Close'].ewm(span=26, adjust=False).mean()
-            macd = exp1 - exp2
-            signal = macd.ewm(span=9, adjust=False).mean()
-            
-            status = "WAIT"
-            color = "black"
-            vol_color = "white"
-            
-            if current_price > high_price and macd.iloc[-1] > signal.iloc[-1]:
-                status = "CALL (Buy)"
-                color = "blue"
-            elif current_price < low_price and macd.iloc[-1] < signal.iloc[-1]:
-                status = "PUT (Sell)"
-                color = "red"
-            
-            vol_ratio = volume / avg_volume
-            if vol_ratio > 1.5:
-                vol_color = "#CCFF00" 
-                
-            data_list.append({
-                'Ticker': ticker, 'Price': round(current_price, 2),
-                'Change': round(current_price - prev_price, 2),
-                'Volume Ratio': round(vol_ratio, 2),
-                'Signal': status, 'color': color, 'vol_color': vol_color
+            # شروط التلوين (V9 logic)
+            if v_ratio > 1.2: status, color = "⚡ انفجار سيولة", "#CCFF00"
+            if curr_p > p_high and macd_h > 0:
+                status, color = "🔵 دخول Call مؤكد", "#0D47A1"
+            elif curr_p < p_low and macd_h < 0:
+                status, color = "🔴 دخول Put مؤكد", "#B71C1C"
+
+            results.append({
+                "الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}",
+                "قوة السيولة": f"{v_ratio:.2f}x", "RSI": f"{rsi:.1f}",
+                "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط",
+                "_color": color 
             })
-        except: continue
-    return data_list
+    except: continue
 
-# حلقة العرض الخاصة بـ Streamlit لتعمل بدون أخطاء
-while True:
-    data = get_live_data(tickers)
-    with placeholder.container():
-        html = """
-        <style>
-            .radar-table { width: 100%; border-collapse: collapse; font-family: Arial; background-color: white; color: black; }
-            .radar-table th { background-color: #f2f2f2; padding: 10px; border: 1px solid #ddd; }
-            .radar-table td { padding: 10px; border: 1px solid #ddd; text-align: center; font-weight: bold; }
-        </style>
-        <table class="radar-table">
-            <tr><th>Ticker</th><th>Price</th><th>Change</th><th>Vol Ratio</th><th>Action</th></tr>
-        """
-        for row in data:
-            html += f"""
-            <tr style="color: {row['color']};">
-                <td>{row['Ticker']}</td><td>{row['Price']}</td><td>{row['Change']}</td>
-                <td style="background-color: {row['vol_color']};">{row['Volume Ratio']}x</td>
-                <td style="border: 2px solid {row['color']};">{row['Signal']}</td>
-            </tr>
-            """
-        html += "</table>"
-        st.markdown(html, unsafe_allow_html=True)
-        st.write(f"آخر تحديث: {time.strftime('%H:%M:%S')}")
-    time.sleep(10)
+# --- عرض النتائج ---
+if results:
+    df_res = pd.DataFrame(results)
+    
+    def apply_row_style(row):
+        color = row['_color']
+        text_color = "black" if color == "#CCFF00" else "white"
+        if color == "transparent":
+            return ['color: #333333'] * len(row)
+        return [f'background-color: {color}; color: {text_color}; font-weight: bold; border: 1px solid #ccc'] * len(row)
+
+    styled_df = df_res.style.apply(apply_row_style, axis=1)
+    st.table(styled_df.hide(axis='columns', subset=['_color']))
+
+st.sidebar.success("تم اختصار القائمة لزيادة السرعة ⚡")
