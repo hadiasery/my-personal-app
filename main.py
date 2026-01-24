@@ -5,7 +5,7 @@ import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث تلقائي كل 10 ثوانٍ
-st_autorefresh(interval=10000, key="mega_spx_radar_v20_pro")
+st_autorefresh(interval=10000, key="mega_spx_radar_v20_final")
 
 st.set_page_config(page_title="رادار القناص الاحترافي", layout="wide")
 
@@ -15,13 +15,25 @@ st.markdown("""
     .main { background-color: #ffffff; }
     th { background-color: #00416d !important; color: white !important; text-align: center !important; }
     td { text-align: center !important; font-weight: bold !important; }
+    .legend-box { padding: 10px; border-radius: 5px; margin: 5px; display: inline-block; font-weight: bold; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
+# الترويسة
 st.markdown(f"""
-    <div style="background-color: #00416d; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #CCFF00; margin-bottom: 20px;">
-        <h2 style="color: white; margin:0;">🚀 رادار القناص V20: نظام التحذير الذكي</h2>
-        <p style="color: #CCFF00; margin:0;">🔥 مراقبة السيولة + ⚠️ تنبيهات التشبع</p>
+    <div style="background-color: #00416d; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #CCFF00; margin-bottom: 10px;">
+        <h2 style="color: white; margin:0;">🚀 رادار القناص V20: النسخة الكاملة</h2>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- دليل الألوان (Legend) ---
+st.markdown("""
+    <div style="text-align: center; margin-bottom: 20px;">
+        <div class="legend-box" style="background-color: #0D47A1;">🔵 دخول Call مؤكد</div>
+        <div class="legend-box" style="background-color: #B71C1C;">🔴 دخول Put مؤكد</div>
+        <div class="legend-box" style="background-color: #CCFF00; color: black;">⚡ انفجار سيولة (🔥)</div>
+        <div class="legend-box" style="background-color: #FFA500; color: black;">⚠️ تحذير (تشبع سعري)</div>
+        <div class="legend-box" style="background-color: transparent; color: black; border: 1px solid #ccc;">⚪ هدوء / انتظار</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -50,20 +62,18 @@ for name, sym in STOCKS.items():
             
             status, color, fire = "⚪ هدوء", "transparent", ""
             
-            # 1. فحص السيولة (النار)
             if v_ratio > 1.2:
                 fire = "🔥🔥🔥"
                 status, color = "⚡ سيولة عالية", "#CCFF00"
             
-            # 2. فحص الدخول مع التحذير (RSI)
             if curr_p > p_high and macd_h > 0:
                 if rsi > 75:
-                    status, color = "⚠️ Call (خطر قمة!)", "#FFA500" # برتقالي للتحذير
+                    status, color = "⚠️ Call (خطر قمة!)", "#FFA500"
                 else:
                     status, color = "🔵 دخول Call مؤكد", "#0D47A1"
             elif curr_p < p_low and macd_h < 0:
                 if rsi < 25:
-                    status, color = "⚠️ Put (خطر قاع!)", "#FFA500" # برتقالي للتحذير
+                    status, color = "⚠️ Put (خطر قاع!)", "#FFA500"
                 else:
                     status, color = "🔴 دخول Put مؤكد", "#B71C1C"
 
@@ -85,4 +95,4 @@ if results:
 
     st.table(df_res.style.apply(apply_row_style, axis=1).hide(axis='columns', subset=['_color']))
 
-st.sidebar.info("اللون البرتقالي ⚠️ يعني تشبع السعر، انتظر قليلاً ولا تندفع.")
+st.sidebar.write(f"آخر تحديث: {pd.Timestamp.now().strftime('%H:%M:%S')}")
