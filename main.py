@@ -1,10 +1,13 @@
 import pandas as pd
 import yfinance as yf
 import time
-from IPython.display import clear_output, display
+import streamlit as st
 
-# --- قائمة الأسهم المحدثة حسب طلبك ---
+# قائمة الشركات بعد الحذف
 tickers = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'AMD']
+
+st.set_page_config(page_title="رادار القناص", layout="wide")
+placeholder = st.empty()
 
 def get_live_data(ticker_list):
     data_list = []
@@ -12,7 +15,6 @@ def get_live_data(ticker_list):
         try:
             stock = yf.Ticker(ticker)
             df = stock.history(period='2d', interval='1m')
-            
             if df.empty: continue
             
             current_price = df['Close'].iloc[-1]
@@ -28,8 +30,8 @@ def get_live_data(ticker_list):
             signal = macd.ewm(span=9, adjust=False).mean()
             
             status = "WAIT"
-            color = "white"
-            vol_color = "black"
+            color = "black"
+            vol_color = "white"
             
             if current_price > high_price and macd.iloc[-1] > signal.iloc[-1]:
                 status = "CALL (Buy)"
@@ -43,50 +45,36 @@ def get_live_data(ticker_list):
                 vol_color = "#CCFF00" 
                 
             data_list.append({
-                'Ticker': ticker,
-                'Price': round(current_price, 2),
+                'Ticker': ticker, 'Price': round(current_price, 2),
                 'Change': round(current_price - prev_price, 2),
                 'Volume Ratio': round(vol_ratio, 2),
-                'Signal': status,
-                'color': color,
-                'vol_color': vol_color
+                'Signal': status, 'color': color, 'vol_color': vol_color
             })
-        except:
-            continue
+        except: continue
     return data_list
 
-def display_radar(data):
-    html = """
-    <style>
-        .radar-table { width: 100%; border-collapse: collapse; font-family: Arial; background-color: white; }
-        .radar-table th { background-color: #f2f2f2; padding: 10px; border: 1px solid #ddd; }
-        .radar-table td { padding: 10px; border: 1px solid #ddd; text-align: center; font-weight: bold; }
-    </style>
-    <table class="radar-table">
-        <tr>
-            <th>Ticker</th><th>Price</th><th>Change</th><th>Vol Ratio</th><th>Action</th>
-        </tr>
-    """
-    for row in data:
-        html += f"""
-        <tr style="color: {row['color']};">
-            <td>{row['Ticker']}</td>
-            <td>{row['Price']}</td>
-            <td>{row['Change']}</td>
-            <td style="background-color: {row['vol_color']}; color: black;">{row['Volume Ratio']}x</td>
-            <td style="border: 2px solid {row['color']};">{row['Signal']}</td>
-        </tr>
+# حلقة العرض الخاصة بـ Streamlit لتعمل بدون أخطاء
+while True:
+    data = get_live_data(tickers)
+    with placeholder.container():
+        html = """
+        <style>
+            .radar-table { width: 100%; border-collapse: collapse; font-family: Arial; background-color: white; color: black; }
+            .radar-table th { background-color: #f2f2f2; padding: 10px; border: 1px solid #ddd; }
+            .radar-table td { padding: 10px; border: 1px solid #ddd; text-align: center; font-weight: bold; }
+        </style>
+        <table class="radar-table">
+            <tr><th>Ticker</th><th>Price</th><th>Change</th><th>Vol Ratio</th><th>Action</th></tr>
         """
-    html += "</table>"
-    display({'text/html': html}, raw=True)
-
-print("🚀 رادار القناص يعمل الآن بنفس النظام الأصلي...")
-try:
-    while True:
-        live_data = get_live_data(tickers)
-        clear_output(wait=True)
-        display_radar(live_data)
-        print(f"\nآخر تحديث: {time.strftime('%H:%M:%S')}")
-        time.sleep(10)
-except KeyboardInterrupt:
-    print("\nتم إيقاف الرادار.")
+        for row in data:
+            html += f"""
+            <tr style="color: {row['color']};">
+                <td>{row['Ticker']}</td><td>{row['Price']}</td><td>{row['Change']}</td>
+                <td style="background-color: {row['vol_color']};">{row['Volume Ratio']}x</td>
+                <td style="border: 2px solid {row['color']};">{row['Signal']}</td>
+            </tr>
+            """
+        html += "</table>"
+        st.markdown(html, unsafe_allow_html=True)
+        st.write(f"آخر تحديث: {time.strftime('%H:%M:%S')}")
+    time.sleep(10)
