@@ -7,14 +7,14 @@ from streamlit_autorefresh import st_autorefresh
 # تحديث تلقائي كل 10 ثوانٍ لضمان السرعة القصوى
 st_autorefresh(interval=10000, key="mega_spx_radar_v20")
 
-st.set_page_config(page_title="رادار القناص V20 - المختصر", layout="wide")
+st.set_page_config(page_title="رادار القناص V20 - المطور", layout="wide")
 
 # --- تنسيق الواجهة (الخلفية البيضاء) ---
 st.markdown("""
     <style>
     .main { background-color: #ffffff; color: #000000; }
     div[data-testid="stTable"] { background-color: #f8f9fa; border-radius: 10px; border: 1px solid #dee2e6; }
-    th { background-color: #e9ecef !important; color: #00416d !important; text-align: center !important; border: 1px solid #dee2e6 !important; }
+    th { background-color: #00416d !important; color: white !important; text-align: center !important; border: 1px solid #dee2e6 !important; }
     td { text-align: center !important; border: 1px solid #dee2e6 !important; color: #333333; }
     </style>
     """, unsafe_allow_html=True)
@@ -27,7 +27,7 @@ st.markdown(f"""
     </div>
     """, unsafe_allow_html=True)
 
-# القائمة المختصرة بعد الحذف
+# القائمة المختصرة
 STOCKS = {
     '📊 مؤشر سباكس (SPY)': 'SPY', 
     'أبل (Apple)': 'AAPL', 
@@ -47,7 +47,9 @@ results = []
 for name, sym in STOCKS.items():
     try:
         ticker = yf.Ticker(sym)
-        curr_p = ticker.fast_info['last_price'] # السعر اللحظي
+        # محاولة جلب السعر اللحظي بدقة
+        info = ticker.fast_info
+        curr_p = info['last_price']
         
         df = ticker.history(period='2d', interval='1m')
         if not df.empty and len(df) > 1:
@@ -57,20 +59,31 @@ for name, sym in STOCKS.items():
             macd_h = float(macd['MACDh_12_26_9'].iloc[-1])
             p_high = float(df['High'].iloc[-2])
             p_low = float(df['Low'].iloc[-2])
+            
+            # حساب نسبة السيولة
             v_ratio = df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1]
             
             status, color = "⚪ هدوء", "transparent"
+            fire_icon = "" # افتراضياً لا يوجد نار
             
-            # شروط التلوين (V9 logic)
-            if v_ratio > 1.2: status, color = "⚡ انفجار سيولة", "#CCFF00"
+            # شروط الانفجار (علامة النار)
+            if v_ratio > 1.2:
+                fire_icon = "🔥🔥🔥"
+                status, color = "⚡ انفجار سيولة", "#CCFF00"
+            
+            # شروط الدخول المؤكد
             if curr_p > p_high and macd_h > 0:
                 status, color = "🔵 دخول Call مؤكد", "#0D47A1"
             elif curr_p < p_low and macd_h < 0:
                 status, color = "🔴 دخول Put مؤكد", "#B71C1C"
 
             results.append({
-                "الأداة": name, "الحالة": status, "السعر": f"{curr_p:.2f}",
-                "قوة السيولة": f"{v_ratio:.2f}x", "RSI": f"{rsi:.1f}",
+                "الأداة": name, 
+                "انفجار": fire_icon, # العمود الجديد
+                "الحالة": status, 
+                "السعر": f"{curr_p:.2f}",
+                "قوة السيولة": f"{v_ratio:.2f}x", 
+                "RSI": f"{rsi:.1f}",
                 "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط",
                 "_color": color 
             })
@@ -80,6 +93,10 @@ for name, sym in STOCKS.items():
 if results:
     df_res = pd.DataFrame(results)
     
+    # إعادة ترتيب الأعمدة لتكون النار في البداية لجذب الانتباه
+    cols = ["الأداة", "انفجار", "الحالة", "السعر", "قوة السيولة", "RSI", "الاتجاه", "_color"]
+    df_res = df_res[cols]
+
     def apply_row_style(row):
         color = row['_color']
         text_color = "black" if color == "#CCFF00" else "white"
@@ -88,6 +105,7 @@ if results:
         return [f'background-color: {color}; color: {text_color}; font-weight: bold; border: 1px solid #ccc'] * len(row)
 
     styled_df = df_res.style.apply(apply_row_style, axis=1)
+    # إخفاء عمود الألوان المساعد
     st.table(styled_df.hide(axis='columns', subset=['_color']))
 
-st.sidebar.success("تم اختصار القائمة لزيادة السرعة ⚡")
+st.sidebar.success("تم تفعيل رادار النار 🔥 - راقب الانفجارات!")
