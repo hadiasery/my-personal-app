@@ -4,36 +4,24 @@ import pandas_ta as ta
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث تلقائي كل 10 ثوانٍ
-st_autorefresh(interval=10000, key="mega_spx_radar_final_v21")
+# تحديث فائق السرعة كل 5 ثوانٍ
+st_autorefresh(interval=5000, key="fixed_v28_final")
 
-st.set_page_config(page_title="رادار القناص V20", layout="wide")
+st.set_page_config(page_title="رادار القناص V28", layout="wide")
 
-# --- دليل الألوان في الجهة اليسرى (Sidebar) ---
-st.sidebar.markdown("""
-    <div style="background-color: #00416d; padding: 15px; border-radius: 10px; color: white;">
-        <h3 style="text-align: center; color: #CCFF00;">🎨 دليل الألوان</h3>
-        <hr>
-        <p>🔵 <b>دخول Call:</b> سعر مخترق + ماكد صاعد</p>
-        <p>🔴 <b>دخول Put:</b> سعر مكسور + ماكد هابط</p>
-        <p>🟡 <b>سيولة عالية:</b> انفجار فوليوم (🔥)</p>
-        <p>🟠 <b>تحذير:</b> تشبع RSI (قمة/قاع)</p>
-        <p>⚪ <b>هدوء:</b> انتظار الإشارة</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-# --- تنسيق واجهة الجدول ---
+# --- تنسيق CSS لضمان عدم ظهور اللون الأزرق نهائياً ---
 st.markdown("""
     <style>
+    .main { background-color: #f0f2f6; }
     th { background-color: #00416d !important; color: white !important; text-align: center !important; }
     td { text-align: center !important; font-weight: bold !important; border: 1px solid #ddd !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"""
-    <div style="background-color: #00416d; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #CCFF00; margin-bottom: 20px;">
-        <h2 style="color: white; margin:0;">🚀 رادار القناص SPX والأسهم (V20)</h2>
-        <p style="color: #CCFF00; margin:0; font-weight: bold;">تحديث البيانات اللحظي: كل 10 ثوانٍ 🔍</p>
+# ترويسة الرادار
+st.markdown("""
+    <div style="background-color: #00416d; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #00FF00; margin-bottom: 20px;">
+        <h2 style="color: white; margin:0;">🚀 رادار القناص: نظام التنبيه الفوري (V28)</h2>
     </div>
     """, unsafe_allow_html=True)
 
@@ -47,74 +35,50 @@ results = []
 
 for name, sym in STOCKS.items():
     try:
-        ticker = yf.Ticker(sym)
-        curr_p = ticker.fast_info['last_price']
-        df = ticker.history(period='2d', interval='1m')
+        # جلب البيانات
+        df = yf.download(sym, period='1d', interval='1m', progress=False)
         
-        if not df.empty and len(df) > 1:
-            close_s = df['Close'].squeeze()
-            rsi = float(ta.rsi(close_s, length=14).iloc[-1])
-            macd = ta.macd(close_s)
-            macd_h = float(macd['MACDh_12_26_9'].iloc[-1])
-            p_high = float(df['High'].iloc[-2])
-            p_low = float(df['Low'].iloc[-2])
-            v_ratio = df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1]
+        if not df.empty and len(df) > 10:
+            curr_p = float(df['Close'].iloc[-1])
+            macd = ta.macd(df['Close'], fast=5, slow=13, signal=4)
+            m_val = float(macd['MACD_5_13_4'].iloc[-1])
+            s_val = float(macd['MACDs_5_13_4'].iloc[-1])
+            v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(5).mean().iloc[-1])
             
-            # تحديد الأيقونة واللون
-            status_icon, bg_color, text_color = "⚪", "white", "black"
-            status_text = "هدوء"
-            fire = ""
+            # القيم الافتراضية (هدوء)
+            icon, status, bg, tc = "⚪", "انتظار (هدوء)", "#FFFFFF", "black"
 
-            if v_ratio > 1.2:
-                fire = "🔥🔥🔥"
-                status_icon, status_text, bg_color = "🟡", "انفجار سيولة", "#CCFF00"
-
-            if curr_p > p_high and macd_h > 0:
-                if rsi > 75:
-                    status_icon, status_text, bg_color = "🟠", "تحذير قمة", "#FFA500"
+            # --- منطق الألوان وكلمة "الآن" ---
+            # حالة الـ Call
+            if m_val > s_val:
+                if v_ratio > 1.2:
+                    icon, status, bg, tc = "🟢🔥", "كول قوي الآن", "#00FF00", "black" # أخضر فاقع
                 else:
-                    status_icon, status_text, bg_color, text_color = "🔵", "دخول Call", "#0D47A1", "white"
-            elif curr_p < p_low and macd_h < 0:
-                if rsi < 25:
-                    status_icon, status_text, bg_color = "🟠", "تحذير قاع", "#FFA500"
+                    icon, status, bg, tc = "🟢", "كول (متابعة)", "#90EE90", "black" # أخضر فاتح
+            
+            # حالة الـ Put
+            elif m_val < s_val:
+                if v_ratio > 1.2:
+                    icon, status, bg, tc = "🔴🔥", "بوت قوي الآن", "#FF0000", "white" # أحمر فاقع
                 else:
-                    status_icon, status_text, bg_color, text_color = "🔴", "دخول Put", "#B71C1C", "white"
+                    icon, status, bg, tc = "🔴", "بوت (متابعة)", "#FFCCCB", "black" # أحمر فاتح
 
             results.append({
-                "الإشارة": status_icon, # هذا هو عمود الأيقونة الملونة
-                "الأداة": name,
-                "انفجار": fire,
-                "الحالة": status_text,
-                "السعر": f"{curr_p:.2f}",
-                "السيولة": f"{v_ratio:.2f}x",
-                "RSI": f"{rsi:.1f}",
-                "الاتجاه": "📈 صاعد" if macd_h > 0 else "📉 هابط",
-                "_bg": bg_color,
-                "_tc": text_color
+                "⚡": icon, "الأداة": name, "الحالة والوقت": status,
+                "السعر": f"{curr_p:.2f}", "السيولة": f"{v_ratio:.2f}x",
+                "_bg": bg, "_tc": tc
             })
-    except: continue
+    except Exception as e:
+        continue
 
-# عرض الجدول بنظام HTML لضمان ثبات الألوان والأيقونات
+# عرض الجدول بنظام HTML لضمان ثبات التنسيق
 if results:
-    table_html = """<table style="width:100%;">
-    <thead><tr>
-        <th>الإشارة</th><th>الأداة</th><th>انفجار</th><th>الحالة</th><th>السعر</th><th>السيولة</th><th>RSI</th><th>الاتجاه</th>
-    </tr></thead><tbody>"""
+    html_code = "<table style='width:100%; border-collapse: collapse;'><thead><tr>"
+    html_code += "<th>⚡</th><th>الأداة</th><th>الحالة والوقت</th><th>السعر</th><th>السيولة</th></tr></thead><tbody>"
     
     for r in results:
-        table_html += f"""
-        <tr style="background-color: {r['_bg']}; color: {r['_tc']};">
-            <td style="font-size: 24px;">{r['الإشارة']}</td>
-            <td>{r['الأداة']}</td>
-            <td>{r['انفجار']}</td>
-            <td>{r['الحالة']}</td>
-            <td>{r['السعر']}</td>
-            <td>{r['السيولة']}</td>
-            <td>{r['RSI']}</td>
-            <td>{r['الاتجاه']}</td>
-        </tr>"""
+        html_code += f"<tr style='background-color: {r['_bg']}; color: {r['_tc']}; font-weight: bold;'>"
+        html_code += f"<td>{r['⚡']}</td><td>{r['الأداة']}</td><td>{r['الحالة والوقت']}</td><td>{r['السعر']}</td><td>{r['السيولة']}</td></tr>"
     
-    table_html += "</tbody></table>"
-    st.markdown(table_html, unsafe_allow_html=True)
-
-st.sidebar.success("الرادار يعمل الآن.. راقب الإشارات 🎯")
+    html_code += "</tbody></table>"
+    st.markdown(html_code, unsafe_allow_html=True)
