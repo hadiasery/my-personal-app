@@ -2,73 +2,85 @@ import streamlit as st
 import yfinance as yf
 import pandas_ta as ta
 import pandas as pd
-import numpy as np
 import time
 from streamlit_autorefresh import st_autorefresh
 
-st_autorefresh(interval=5000, key="v35_greeks_radar")
+# تحديث كل 10 ثوانٍ لضمان استقرار الربط
+st_autorefresh(interval=10000, key="v39_final_fixed")
 
-st.set_page_config(page_title="رادار الأوبشن الاحترافي V35", layout="wide")
+st.set_page_config(page_title="رادار القناص V39", layout="wide")
 
 st.markdown("""
     <style>
-    th { background-color: #00416d !important; color: white !important; }
-    td { text-align: center !important; font-weight: bold !important; border: 1px solid #eee !important; }
-    .iv-high { color: #ff4b4b; font-weight: bold; }
+    th { background-color: #00416d !important; color: white !important; text-align: center !important; }
+    td { text-align: center !important; font-weight: bold !important; border: 1px solid #eee !important; padding: 10px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown("""
-    <div style="background-color: #013220; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #00FF00;">
-        <h2 style="color: white; margin:0;">💎 رادار الأوبشن V35: دمج الـ IV و Theta</h2>
-    </div>
-    """, unsafe_allow_html=True)
+# قائمة الشركات
+STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD', 'NIO']
 
-STOCKS = {'SPY': 'SPY', 'AAPL': 'AAPL', 'NVDA': 'NVDA', 'TSLA': 'TSLA', 'MSFT': 'MSFT', 'AMZN': 'AMZN', 'META': 'META', 'GOOGL': 'GOOGL'}
+if 'signal_start' not in st.session_state:
+    st.session_state.signal_start = {}
 
 results = []
 
-for name, sym in STOCKS.items():
+for sym in STOCKS:
     try:
-        df = yf.download(sym, period='2d', interval='1m', progress=False)
-        if not df.empty and len(df) > 20:
+        # جلب البيانات مع تفعيل prepost لإظهار البيانات حتى لو السوق مغلق
+        df = yf.download(sym, period='2d', interval='1m', progress=False, prepost=True)
+        
+        if not df.empty and len(df) > 10:
             curr_p = float(df['Close'].iloc[-1])
+            high_d = float(df['High'].max())
+            low_d = float(df['Low'].min())
             
-            # --- حساب الـ IV التقديري (Volatility) ---
-            returns = np.log(df['Close'] / df['Close'].shift(1))
-            iv_est = returns.std() * np.sqrt(252 * 390) * 100 # تقريب للتقلب السنوي من بيانات الدقيقة
-            
-            # --- حساب الـ Theta التقديري (تآكل الوقت لنهاية اليوم) ---
-            # كلما اقتربنا من الإغلاق، زاد تأثير الثيتا على العقود اليومية
-            current_hour = time.localtime().tm_hour
-            theta_risk = "منخفض" if current_hour < 20 else "مرتفع 🔥"
-
             # المؤشرات الفنية
             macd = ta.macd(df['Close'], fast=5, slow=13, signal=4)
-            m_val = float(macd['MACD_5_13_4'].iloc[-1])
-            s_val = float(macd['MACDs_5_13_4'].iloc[-1])
-            v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
+            m_val = float(macd.iloc[-1, 0])
+            s_val = float(macd.iloc[-1, 2])
             
-            status, bg, tc, icon = "انتظار", "#FFFFFF", "black", "⚪"
+            # السيولة
+            v_now = df['Volume'].iloc[-1]
+            v_avg = df['Volume'].rolling(5).mean().iloc[-1]
+            v_ratio = float(v_now / v_avg) if v_avg > 0 else 1.0
             
-            # منطق الدخول الذكي (IV + MACD + Volume)
-            if m_val > s_val and v_ratio > 1.1:
-                icon, status, bg = "🔥", "كول قوي الآن", "#00FF00"
-            elif m_val < s_val and v_ratio > 1.1:
-                icon, status, bg, tc = "🔥", "بوت قوي الآن", "#FF0000", "white"
+            icon, status, bg, tc, target = "⚪", "انتظار", "#FFFFFF", "black", "-"
+            
+            # منطق "قوي الآن" والأهداف
+            if m_val > s_val:
+                target = f"{curr_p + (high_d - low_d)*0.03:.2f}" # هدف قريب
+                if v_ratio > 1.02: icon, status, bg = "🔥", "كول قوي الآن", "#00FF00"
+                else: icon, status, bg = "🟢", "كول متابعة", "#90EE90"
+            elif m_val < s_val:
+                target = f"{curr_p - (high_d - low_d)*0.03:.2f}"
+                if v_ratio > 1.02: icon, status, bg, tc = "🔥", "بوت قوي الآن", "#FF0000", "white"
+                else: icon, status, bg = "🔴", "بوت متابعة", "#FFCCCB"
+
+            # حساب عداد الثواني
+            if "قوي" in status:
+                if sym not in st.session_state.signal_start:
+                    st.session_state.signal_start[sym] = time.time()
+                elapsed = int(time.time() - st.session_state.signal_start[sym])
+                time_str = f"{elapsed} ث"
+            else:
+                st.session_state.signal_start.pop(sym, None)
+                time_str = "-"
 
             results.append({
-                "⚡": icon, "الأداة": sym, "الحالة": status,
-                "IV %": f"{iv_est:.1f}%", "خطر الثيتا": theta_risk,
-                "السعر": f"{curr_p:.2f}", "السيولة": f"{v_ratio:.2f}x",
+                "⚡": icon, "السهم": sym, "الحالة": status, "منذ": time_str,
+                "السعر": f"{curr_p:.2f}", "الهدف 🎯": target, "السيولة": f"{v_ratio:.2f}x",
                 "_bg": bg, "_tc": tc
             })
     except: continue
 
+st.markdown(f'<h2 style="text-align:center; color:#00416d;">🎯 رادار القناص V39: الأهداف والوقت والسيولة</h2>', unsafe_allow_html=True)
+
 if results:
-    html = "<table style='width:100%; border-collapse: collapse;'><thead><tr>"
-    html += "<th>🔥</th><th>السهم</th><th>الحالة</th><th>IV (تقلب)</th><th>Theta (وقت)</th><th>السعر</th><th>السيولة</th></tr></thead><tbody>"
+    html = "<table style='width:100%; border-collapse: collapse;'><thead><tr><th>🔥</th><th>السهم</th><th>الحالة</th><th>منذ</th><th>السعر</th><th>الهدف 🎯</th><th>السيولة</th></tr></thead><tbody>"
     for r in results:
         html += f"<tr style='background-color: {r['_bg']}; color: {r['_tc']}; font-weight: bold;'>"
-        html += f"<td>{r['⚡']}</td><td>{r['الأداة']}</td><td>{r['الحالة']}</td><td>{r['IV %']}</td><td>{r['خطر الثيتا']}</td><td>{r['السعر']}</td><td>{r['السيولة']}</td></tr>"
+        html += f"<td style='font-size: 22px;'>{r['⚡']}</td><td>{r['السهم']}</td><td>{r['الحالة']}</td><td>{r['منذ']}</td><td>{r['السعر']}</td><td style='color:blue;'>{r['الهدف 🎯']}</td><td>{r['السيولة']}</td></tr>"
     st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+else:
+    st.error("❌ فشل في جلب البيانات. يرجى إعادة تشغيل التطبيق (Reboot) من لوحة تحكم Streamlit.")
