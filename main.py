@@ -5,84 +5,70 @@ import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث كل 5 ثوانٍ
-st_autorefresh(interval=5000, key="smart_power_radar_v25")
+st_autorefresh(interval=5000, key="v36_fix_visibility")
 
-st.set_page_config(page_title="رادار القناص - فلتر القوة", layout="wide")
+st.set_page_config(page_title="رادار القناص V36", layout="wide")
 
-# --- التنسيق ---
 st.markdown("""
     <style>
-    th { background-color: #00416d !important; color: white !important; }
+    th { background-color: #00416d !important; color: white !important; text-align: center !important; }
     td { text-align: center !important; font-weight: bold !important; border: 1px solid #eee !important; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"""
+st.markdown("""
     <div style="background-color: #00416d; padding: 15px; border-radius: 10px; text-align: center; border-bottom: 5px solid #00FF00; margin-bottom: 20px;">
-        <h2 style="color: white; margin:0;">🚀 رادار القناص: نظام تقييم قوة الصفقات (V25)</h2>
+        <h2 style="color: white; margin:0;">🚀 رادار القناص V36: إصلاح ظهور البيانات</h2>
     </div>
     """, unsafe_allow_html=True)
 
+# قائمة الشركات
 STOCKS = {
-    '📊 مؤشر سباكس (SPY)': 'SPY', 'أبل (Apple)': 'AAPL', 'نيفيديا (Nvidia)': 'NVDA', 
-    'تسلا (Tesla)': 'TSLA', 'مايكروسوفت (MSFT)': 'MSFT', 'أمازون (AMZN)': 'AMZN', 
-    'ميتا (Meta)': 'META', 'غوغل (Google)': 'GOOGL', 'نيو (NIO)': 'NIO', 'AMD (AMD)': 'AMD'
+    'SPY': 'SPY', 'AAPL': 'AAPL', 'NVDA': 'NVDA', 
+    'TSLA': 'TSLA', 'MSFT': 'MSFT', 'AMZN': 'AMZN', 
+    'META': 'META', 'GOOGL': 'GOOGL'
 }
 
 results = []
 
 for name, sym in STOCKS.items():
     try:
-        ticker = yf.Ticker(sym)
-        curr_p = ticker.fast_info['last_price']
-        df = ticker.history(period='1d', interval='1m')
+        # استخدام yf.download بدلاً من Ticker.history لثبات أكثر
+        df = yf.download(sym, period='1d', interval='1m', progress=False)
         
-        if not df.empty and len(df) > 15:
-            # محرك MACD السريع
+        if df.empty:
+            st.warning(f"⚠️ لا توجد بيانات حالياً لسهم {sym}")
+            continue
+            
+        if len(df) > 10:
+            curr_p = float(df['Close'].iloc[-1])
             macd = ta.macd(df['Close'], fast=5, slow=13, signal=4)
-            m_val = macd['MACD_5_13_4'].iloc[-1]
-            s_val = macd['MACDs_5_13_4'].iloc[-1]
-            pm_val = macd['MACD_5_13_4'].iloc[-2]
-            ps_val = macd['MACDs_5_13_4'].iloc[-2]
+            m_val = float(macd.iloc[-1, 0])
+            s_val = float(macd.iloc[-1, 2])
+            v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(5).mean().iloc[-1])
             
-            v_ratio = df['Volume'].iloc[-1] / df['Volume'].rolling(5).mean().iloc[-1]
+            icon, status, bg, tc = "⚪", "انتظار", "white", "black"
             
-            # القيم الافتراضية
-            icon, status, bg, tc = "⚪", "انتظار (هدوء)", "white", "black"
-
-            # --- منطق تقييم القوة ---
-            
-            # 1. حالة الـ Call
-            if m_val > s_val and pm_val <= ps_val:
-                if v_ratio > 1.3: # تقاطع + سيولة عالية
-                    icon, status, bg, tc = "🟢🔥", "Call قوي جداً", "#00FF00", "black"
-                else: # تقاطع + سيولة عادية
-                    icon, status, bg, tc = "🟢", "Call ضعيف (حذر)", "#90EE90", "black" # أخضر فاتح للضعيف
-            
-            # 2. حالة الـ Put
-            elif m_val < s_val and pm_val >= ps_val:
-                if v_ratio > 1.3: # كسر + سيولة عالية
-                    icon, status, bg, tc = "🔴🔥", "Put قوي جداً", "#FF0000", "white"
-                else: # كسر + سيولة عادية
-                    icon, status, bg, tc = "🔴", "Put ضعيف (حذر)", "#FFCCCB", "black" # أحمر فاتح للضعيف
-
-            # 3. حالة انفجار سيولة بدون تقاطع
-            elif v_ratio > 1.5:
-                icon, status, bg, tc = "🟡", "سيولة ضخمة (ترقب)", "#CCFF00", "black"
+            if m_val > s_val:
+                icon, status, bg = ("🔥", "كول قوي الآن", "#00FF00") if v_ratio > 1.05 else ("🟢", "كول ضعيف", "#90EE90")
+            elif m_val < s_val:
+                icon, status, bg, tc = ("🔥", "بوت قوي الآن", "#FF0000", "white") if v_ratio > 1.05 else ("🔴", "بوت ضعيف", "#FFCCCB", "black")
 
             results.append({
-                "⚡": icon, "الأداة": name, "القوة والحالة": status,
+                "⚡": icon, "الأداة": name, "الحالة": status,
                 "السعر": f"{curr_p:.2f}", "السيولة": f"{v_ratio:.2f}x",
                 "_bg": bg, "_tc": tc
             })
-    except: continue
+    except Exception as e:
+        st.error(f"❌ خطأ في {sym}: {e}")
 
-if results:
-    table = "<table style='width:100%; border-collapse: collapse;'><thead><tr>"
-    table += "<th>⚡</th><th>الأداة</th><th>القوة والحالة</th><th>السعر</th><th>السيولة</th></tr></thead><tbody>"
+# إذا كانت النتائج فارغة، نظهر رسالة تنبيه
+if not results:
+    st.info("🔄 جاري الاتصال بسيرفرات الأسعار... تأكد من أن السوق مفتوح حالياً.")
+else:
+    html = "<table style='width:100%; border-collapse: collapse;'><thead><tr>"
+    html += "<th>🔥</th><th>الأداة</th><th>الحالة</th><th>السعر</th><th>السيولة</th></tr></thead><tbody>"
     for r in results:
-        table += f"<tr style='background-color: {r['_bg']}; color: {r['_tc']};'>"
-        table += f"<td>{r['⚡']}</td><td>{r['الأداة']}</td><td>{r['القوة والحالة']}</td><td>{r['السعر']}</td><td>{r['السيولة']}</td></tr>"
-    st.markdown(table + "</tbody></table>", unsafe_allow_html=True)
-
-st.sidebar.info("الفرق بين القوي والضعيف هو حجم السيولة لحظة التقاطع.")
+        html += f"<tr style='background-color: {r['_bg']}; color: {r['_tc']}; font-weight: bold;'>"
+        html += f"<td style='font-size: 22px;'>{r['⚡']}</td><td>{r['الأداة']}</td><td>{r['الحالة']}</td><td>{r['السعر']}</td><td>{r['السيولة']}</td></tr>"
+    st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
