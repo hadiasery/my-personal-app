@@ -4,40 +4,30 @@ import pandas_ta as ta
 import pandas as pd
 import numpy as np
 import time
-import base64
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث كل 12 ثانية
-st_autorefresh(interval=12000, key="v40_5_final_audio")
+# التحديث التلقائي
+st_autorefresh(interval=12000, key="v40_fixed_hadi")
 
-st.set_page_config(page_title="رادار القناص V40.5", layout="wide")
+st.set_page_config(page_title="رادار القناص V40 - المطور", layout="wide")
 
-# --- دالة التنبيه الصوتي ---
-def play_sound():
-    sound_html = """
+# دالة الصوت
+def play_beep():
+    audio_html = """
     <audio autoplay>
     <source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg">
     </audio>
     """
-    st.markdown(sound_html, unsafe_allow_html=True)
+    st.markdown(audio_html, unsafe_allow_html=True)
 
-# --- تنسيق CSS المتكامل ---
+# التنسيق الأصلي لكود 40 مع تعديلاتك
 st.markdown("""
     <style>
-    table { width: 100%; border-collapse: collapse; font-family: sans-serif; }
-    th { background-color: #0f172a !important; color: white !important; padding: 12px; }
-    td { text-align: center !important; font-weight: bold !important; border: 1px solid #e2e8f0 !important; padding: 10px !important; }
-    
-    .calm-row { background-color: #ffffff !important; color: #94a3b8 !important; }
-    .call-row { background-color: #dcfce7 !important; color: #166534 !important; }
-    .put-row { background-color: #fee2e2 !important; color: #991b1b !important; }
-    .strong-call { background-color: #22c55e !important; color: white !important; animation: pulse 1s infinite; }
-    .strong-put { background-color: #ef4444 !important; color: white !important; animation: pulse 1s infinite; }
-    
-    .iv-cheap { background-color: #bae6fd !important; color: #0369a1 !important; } /* أزرق سماوي */
-    .target-hit { background-color: #facc15 !important; color: black !important; border: 2px solid orange !important; }
-    
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+    th { background-color: #00416d !important; color: white !important; text-align: center !important; }
+    td { text-align: center !important; font-weight: bold !important; border: 1px solid #222 !important; padding: 12px !important; }
+    .target-cell { color: #00d4ff !important; font-size: 18px; }
+    /* إضافة لون الـ IV الأزرق */
+    .iv-blue { background-color: #00d4ff !important; color: black !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -45,12 +35,13 @@ STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD',
 if 'signal_start' not in st.session_state: st.session_state.signal_start = {}
 
 results = []
-trigger_audio = False
+sound_triggered = False
 
 for sym in STOCKS:
     try:
         ticker = yf.Ticker(sym)
         df = ticker.history(period='2d', interval='1m')
+        
         if not df.empty and len(df) > 10:
             curr_p = float(df['Close'].iloc[-1])
             high_d, low_d = float(df['High'].max()), float(df['Low'].min())
@@ -62,30 +53,26 @@ for sym in STOCKS:
             returns = np.log(df['Close'] / df['Close'].shift(1))
             iv_val = returns.std() * np.sqrt(252 * 390) * 100
             
-            # المنطق وتحديد الألوان
-            icon, status, row_class, target = "⚪", "هدوء", "calm-row", 0.0
-            is_strong = v_ratio > 1.15
-
+            # الحالة الافتراضية (هدوء باللون الأبيض)
+            icon, status, bg, tc, target = "⚪", "هدوء", "#FFFFFF", "black", "-"
+            
+            # منطق الألوان الأصلي لكود 40
             if m_val > s_val:
-                target = round(curr_p + (high_d - low_d)*0.02, 2)
-                row_class = "strong-call" if is_strong else "call-row"
-                icon, status = ("🔥", "كول قوي") if is_strong else ("🟢", "كول")
-                if is_strong: trigger_audio = True
+                target = f"{curr_p + (high_d - low_d)*0.04:.2f}"
+                if v_ratio > 1.05: 
+                    icon, status, bg, tc = "🔥", "كول قوي الآن", "#00FF00", "black"
+                    sound_triggered = True
+                else: 
+                    icon, status, bg, tc = "🟢", "كول", "#006400", "white"
             elif m_val < s_val:
-                target = round(curr_p - (high_d - low_d)*0.02, 2)
-                row_class = "strong-put" if is_strong else "put-row"
-                icon, status = ("🔥", "بوت قوي") if is_strong else ("🔴", "بوت")
-                if is_strong: trigger_audio = True
+                target = f"{curr_p - (high_d - low_d)*0.04:.2f}"
+                if v_ratio > 1.05: 
+                    icon, status, bg, tc = "🔥", "بوت قوي الآن", "#FF0000", "white"
+                    sound_triggered = True
+                else: 
+                    icon, status, bg, tc = "🔴", "بوت", "#8B0000", "white"
 
-            # فحص لمس الهدف
-            target_hit_class = ""
-            if status != "هدوء":
-                is_hit = (status.startswith("كول") and curr_p >= target) or (status.startswith("بوت") and curr_p <= target)
-                if is_hit:
-                    target_hit_class = "target-hit"
-                    trigger_audio = True
-
-            # الوقت
+            # وقت الإشارة
             if "قوي" in status:
                 if sym not in st.session_state.signal_start: st.session_state.signal_start[sym] = time.time()
                 time_str = f"{int(time.time() - st.session_state.signal_start[sym])}ث"
@@ -93,23 +80,24 @@ for sym in STOCKS:
                 st.session_state.signal_start.pop(sym, None)
                 time_str = "-"
 
+            # لون الـ IV
+            iv_bg = "#00d4ff" if iv_val < 10 else bg
+            iv_tc = "black" if iv_val < 10 else tc
+
             results.append({
-                "⚡": icon, "sym": sym, "status": status, "time": time_str,
-                "price": f"{curr_p:.2f}", "target": f"{target:.2f}", "iv": f"{iv_val:.1f}%",
-                "row_class": row_class, "iv_class": "iv-cheap" if iv_val < 10 else "",
-                "hit_class": target_hit_class
+                "⚡": icon, "S": sym, "ST": status, "T": time_str, "P": f"{curr_p:.2f}", 
+                "TG": target, "IV": f"{iv_val:.1f}%", "bg": bg, "tc": tc, "iv_bg": iv_bg, "iv_tc": iv_tc
             })
     except: continue
 
-# تشغيل الصوت إذا وجدت إشارة قوية أو هدف
-if trigger_audio: play_sound()
+if sound_triggered: play_beep()
 
-st.markdown("<h1 style='text-align:center;'>🚀 رادار القناص V40.5 (المنبه الصوتي)</h1>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>💎 رادار القناص V40 المعدل 💎</h2>", unsafe_allow_html=True)
 
 if results:
-    html = "<table><thead><tr><th>إشارة</th><th>السهم</th><th>الحالة</th><th>الوقت</th><th>السعر</th><th>الهدف 🎯</th><th>IV (تقلب)</th></tr></thead><tbody>"
+    html = "<table><thead><tr><th>🔥</th><th>السهم</th><th>الحالة</th><th>الوقت</th><th>السعر</th><th>الهدف 🎯</th><th>IV</th></tr></thead><tbody>"
     for r in results:
-        html += f"<tr class='{r['row_class']}'>"
-        html += f"<td style='font-size:22px;'>{r['⚡']}</td><td>{r['sym']}</td><td>{r['status']}</td><td>{r['time']}</td><td>{r['price']}</td>"
-        html += f"<td class='{r['hit_class']}'>{r['target']}</td><td class='{r['iv_class']}'>{r['iv']}</td></tr>"
+        html += f"<tr style='background-color: {r['bg']}; color: {r['tc']};'>"
+        html += f"<td>{r['⚡']}</td><td>{r['S']}</td><td>{r['ST']}</td><td>{r['T']}</td><td>{r['P']}</td><td class='target-cell'>{r['TG']}</td>"
+        html += f"<td style='background-color: {r['iv_bg']}; color: {r['iv_tc']};'>{r['IV']}</td></tr>"
     st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
