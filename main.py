@@ -4,89 +4,96 @@ import pandas_ta as ta
 import pandas as pd
 import numpy as np
 import time
-import datetime
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث كل 10 ثوانٍ (توازن بين السرعة والاستقرار)
-st_autorefresh(interval=10000, key="v41_royal_radar")
+# تحديث كل 15 ثانية لتقليل الضغط على السيرفر وضمان عدم الحظر
+st_autorefresh(interval=15000, key="v40_pro_radar")
 
-st.set_page_config(page_title="رادار القناص الملكي V41", layout="wide")
+st.set_page_config(page_title="رادار القناص V40", layout="wide")
 
-# --- التنسيق الجمالي الجديد ---
+# --- تنسيق CSS احترافي ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Tajawal', sans-serif; }
-    .main { background-color: #f8f9fa; }
-    th { background-color: #1e293b !important; color: #f8fafc !important; text-align: center !important; padding: 15px !important; border-radius: 5px 5px 0 0; }
-    td { text-align: center !important; font-weight: 600 !important; border-bottom: 1px solid #e2e8f0 !important; padding: 12px !important; }
-    .target-val { color: #2563eb !important; font-size: 1.1em; text-decoration: underline; }
-    .fire-row { animation: pulse 2s infinite; }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+    .main { background-color: #050505; }
+    th { background-color: #00416d !important; color: white !important; text-align: center !important; font-size: 16px; }
+    td { text-align: center !important; font-weight: bold !important; border: 1px solid #222 !important; padding: 12px !important; }
+    .target-cell { color: #00d4ff !important; font-size: 18px; }
     </style>
     """, unsafe_allow_html=True)
 
-# العنوان
-now_time = datetime.datetime.now().strftime("%H:%M:%S")
-st.markdown(f"""
-    <div style="background: linear-gradient(90deg, #1e293b, #334155); padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px;">
-        <h1 style="color: #f1f5f9; margin:0;">💎 رادار القناص الملكي V41 💎</h1>
-        <p style="color: #94a3b8; margin:5px 0 0 0;">وقت التحديث الحالي: {now_time} (بيانات لحظية)</p>
-    </div>
-    """, unsafe_allow_html=True)
-
+# قائمة الشركات
 STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD', 'NIO']
 
-if 'signal_start' not in st.session_state: st.session_state.signal_start = {}
+if 'signal_start' not in st.session_state:
+    st.session_state.signal_start = {}
 
 results = []
 
 for sym in STOCKS:
     try:
-        # جلب البيانات
-        df = yf.download(sym, period='2d', interval='1m', progress=False)
+        # استخدام Ticker لجلب البيانات بشكل أكثر استقراراً
+        ticker = yf.Ticker(sym)
+        df = ticker.history(period='2d', interval='1m')
         
-        if not df.empty and len(df) > 15:
+        if not df.empty and len(df) > 10:
             curr_p = float(df['Close'].iloc[-1])
-            high_d, low_d = float(df['High'].max()), float(df['Low'].min())
+            high_d = float(df['High'].max())
+            low_d = float(df['Low'].min())
             
-            # اليونانيات والمؤشرات
+            # --- دمج IV (التقلب الضمني التقديري) ---
             returns = np.log(df['Close'] / df['Close'].shift(1))
             iv_est = returns.std() * np.sqrt(252 * 390) * 100
-            macd = ta.macd(df['Close'], fast=5, slow=13, signal=4)
-            m_val, s_val = float(macd.iloc[-1, 0]), float(macd.iloc[-1, 2])
-            v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
             
-            # --- منطق الألوان الجديد (لإعادة الهدوء) ---
-            icon, status, bg, tc, target = "⚪", "هدوء / انتظار", "#ffffff", "#64748b", "-"
-            
-            is_strong = v_ratio > 1.15  # شرط القوة (النار)
-            
-            if m_val > s_val:
-                target = f"{curr_p + (high_d - low_d)*0.02:.2f}"
-                if is_strong: icon, status, bg, tc = "🔥", "كول قوي الآن", "#dcfce7", "#166534"
-                else: icon, status, bg, tc = "🟢", "كول هادئ", "#f8fafc", "#22c55e"
-            elif m_val < s_val:
-                target = f"{curr_p - (high_d - low_d)*0.02:.2f}"
-                if is_strong: icon, status, bg, tc = "🔥", "بوت قوي الآن", "#fee2e2", "#991b1b"
-                else: icon, status, bg, tc = "🔴", "بوت هادئ", "#f8fafc", "#ef4444"
+            # --- دمج Theta (تآكل الوقت) ---
+            # حساب الوقت المتبقي لإغلاق السوق الأمريكي (21:00 بتوقيت GMT)
+            theta_risk = "عالي ⚠️" if time.localtime().tm_hour >= 19 else "طبيعي"
 
-            # العداد
+            # المؤشرات الفنية
+            macd = ta.macd(df['Close'], fast=5, slow=13, signal=4)
+            m_val = float(macd.iloc[-1, 0])
+            s_val = float(macd.iloc[-1, 2])
+            
+            # السيولة
+            v_now = df['Volume'].iloc[-1]
+            v_avg = df['Volume'].rolling(5).mean().iloc[-1]
+            v_ratio = float(v_now / v_avg) if v_avg > 0 else 1.0
+            
+            icon, status, bg, tc, target = "⚪", "انتظار", "#1a1a1a", "white", "-"
+            
+            # منطق "قوي الآن" والأهداف
+            if m_val > s_val:
+                target = f"{curr_p + (high_d - low_d)*0.04:.2f}"
+                if v_ratio > 1.05: icon, status, bg, tc = "🔥", "كول قوي الآن", "#00FF00", "black"
+                else: icon, status, bg, tc = "🟢", "كول متابعة", "#006400", "white"
+            elif m_val < s_val:
+                target = f"{curr_p - (high_d - low_d)*0.04:.2f}"
+                if v_ratio > 1.05: icon, status, bg, tc = "🔥", "بوت قوي الآن", "#FF0000", "white"
+                else: icon, status, bg, tc = "🔴", "بوت متابعة", "#8B0000", "white"
+
+            # عداد الوقت
             if "قوي" in status:
-                if sym not in st.session_state.signal_start: st.session_state.signal_start[sym] = time.time()
-                time_str = f"{int(time.time() - st.session_state.signal_start[sym])}ث"
+                if sym not in st.session_state.signal_start:
+                    st.session_state.signal_start[sym] = time.time()
+                elapsed = int(time.time() - st.session_state.signal_start[sym])
+                time_str = f"{elapsed}ث"
             else:
                 st.session_state.signal_start.pop(sym, None)
                 time_str = "-"
 
-            results.append({"⚡": icon, "السهم": sym, "الحالة": status, "منذ": time_str, "السعر": f"{curr_p:.2f}", "الهدف 🎯": target, "IV": f"{iv_est:.1f}%", "_bg": bg, "_tc": tc})
+            results.append({
+                "⚡": icon, "السهم": sym, "الحالة": status, "منذ": time_str,
+                "السعر": f"{curr_p:.2f}", "الهدف 🎯": target, "IV": f"{iv_est:.1f}%", "Theta": theta_risk, "_bg": bg, "_tc": tc
+            })
     except: continue
 
+st.markdown(f'<h1 style="text-align:center; color:#CCFF00;">💎 رادار المحترفين V40 💎</h1>', unsafe_allow_html=True)
+
 if results:
-    html = "<table style='width:100%; border-collapse: separate; border-spacing: 0 8px;'><thead><tr>"
-    html += "<th>إشارة</th><th>السهم</th><th>الحالة</th><th>الوقت</th><th>السعر</th><th>الهدف 🎯</th><th>IV (تقلب)</th></tr></thead><tbody>"
+    html = "<table style='width:100%; border-collapse: collapse;'><thead><tr>"
+    html += "<th>🔥</th><th>السهم</th><th>الحالة</th><th>الوقت</th><th>السعر</th><th>الهدف 🎯</th><th>IV</th><th>Theta</th></tr></thead><tbody>"
     for r in results:
-        row_class = "fire-row" if "🔥" in r['⚡'] else ""
-        html += f"<tr class='{row_class}' style='background-color: {r['_bg']}; color: {r['_tc']}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>"
-        html += f"<td style='font-size: 22px;'>{r['⚡']}</td><td>{r['السهم']}</td><td>{r['الحالة']}</td><td>{r['منذ']}</td><td>{r['السعر']}</td><td class='target-val'>{r['الهدف 🎯']}</td><td>{r['IV']}</td></tr>"
+        html += f"<tr style='background-color: {r['_bg']}; color: {r['_tc']};'>"
+        html += f"<td style='font-size: 24px;'>{r['⚡']}</td><td>{r['السهم']}</td><td>{r['الحالة']}</td><td>{r['منذ']}</td><td>{r['السعر']}</td><td class='target-cell'>{r['الهدف 🎯']}</td><td>{r['IV']}</td><td>{r['Theta']}</td></tr>"
     st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
+else:
+    st.warning("⚠️ ياهو فاينانس يرفض الطلب حالياً. سيقوم الرادار بإعادة المحاولة تلقائياً خلال ثوانٍ...")
