@@ -6,12 +6,13 @@ import numpy as np
 import time
 from streamlit_autorefresh import st_autorefresh
 
-# التحديث التلقائي
-st_autorefresh(interval=12000, key="v40_fixed_hadi")
+# تحديث تلقائي كل 12 ثانية
+st_autorefresh(interval=12000, key="v40_white_bg_final")
 
-st.set_page_config(page_title="رادار القناص V40 - المطور", layout="wide")
+# إعداد الصفحة لتكون بعرض الشاشة الكامل
+st.set_page_config(page_title="رادار القناص V40", layout="wide")
 
-# دالة الصوت
+# دالة التنبيه الصوتي
 def play_beep():
     audio_html = """
     <audio autoplay>
@@ -20,13 +21,27 @@ def play_beep():
     """
     st.markdown(audio_html, unsafe_allow_html=True)
 
-# التنسيق الأصلي لكود 40 مع تعديلاتك
+# --- تنسيق CSS لإجبار الخلفية البيضاء الكاملة ---
 st.markdown("""
     <style>
-    th { background-color: #00416d !important; color: white !important; text-align: center !important; }
-    td { text-align: center !important; font-weight: bold !important; border: 1px solid #222 !important; padding: 12px !important; }
-    .target-cell { color: #00d4ff !important; font-size: 18px; }
-    /* إضافة لون الـ IV الأزرق */
+    .block-container { padding: 2rem 1rem; }
+    .full-width-table { width: 100% !important; border-collapse: collapse; table-layout: fixed; background-color: white; }
+    
+    th { background-color: #00416d !important; color: white !important; text-align: center !important; padding: 15px; }
+    td { text-align: center !important; font-weight: bold !important; border: 1px solid #dddddd !important; padding: 12px !important; }
+    
+    /* حالة الهدوء: خلفية بيضاء نص رمادي */
+    .row-calm { background-color: #ffffff !important; color: #94a3b8 !important; }
+    
+    /* حالة كول وبوت: خلفيات ملونة صريحة كما طلبت */
+    .row-call { background-color: #006400 !important; color: white !important; }
+    .row-put { background-color: #8B0000 !important; color: white !important; }
+    
+    /* حالة القوة: ألوان فاقعة ونار */
+    .row-strong-call { background-color: #00FF00 !important; color: black !important; }
+    .row-strong-put { background-color: #FF0000 !important; color: white !important; }
+
+    .target-cell { color: #00d4ff !important; font-size: 1.1em; }
     .iv-blue { background-color: #00d4ff !important; color: black !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -53,24 +68,24 @@ for sym in STOCKS:
             returns = np.log(df['Close'] / df['Close'].shift(1))
             iv_val = returns.std() * np.sqrt(252 * 390) * 100
             
-            # الحالة الافتراضية (هدوء باللون الأبيض)
-            icon, status, bg, tc, target = "⚪", "هدوء", "#FFFFFF", "black", "-"
+            # --- تحديد الحالة واللون ---
+            # الافتراضي: هدوء
+            icon, status, row_class, target = "⚪", "هدوء", "row-calm", "-"
             
-            # منطق الألوان الأصلي لكود 40
             if m_val > s_val:
                 target = f"{curr_p + (high_d - low_d)*0.04:.2f}"
-                if v_ratio > 1.05: 
-                    icon, status, bg, tc = "🔥", "كول قوي الآن", "#00FF00", "black"
+                if v_ratio > 1.10: 
+                    icon, status, row_class = "🔥", "كول قوي الآن", "row-strong-call"
                     sound_triggered = True
                 else: 
-                    icon, status, bg, tc = "🟢", "كول", "#006400", "white"
+                    icon, status, row_class = "🟢", "كول", "row-call"
             elif m_val < s_val:
                 target = f"{curr_p - (high_d - low_d)*0.04:.2f}"
-                if v_ratio > 1.05: 
-                    icon, status, bg, tc = "🔥", "بوت قوي الآن", "#FF0000", "white"
+                if v_ratio > 1.10: 
+                    icon, status, row_class = "🔥", "بوت قوي الآن", "row-strong-put"
                     sound_triggered = True
                 else: 
-                    icon, status, bg, tc = "🔴", "بوت", "#8B0000", "white"
+                    icon, status, row_class = "🔴", "بوت", "row-put"
 
             # وقت الإشارة
             if "قوي" in status:
@@ -80,24 +95,23 @@ for sym in STOCKS:
                 st.session_state.signal_start.pop(sym, None)
                 time_str = "-"
 
-            # لون الـ IV
-            iv_bg = "#00d4ff" if iv_val < 10 else bg
-            iv_tc = "black" if iv_val < 10 else tc
-
             results.append({
                 "⚡": icon, "S": sym, "ST": status, "T": time_str, "P": f"{curr_p:.2f}", 
-                "TG": target, "IV": f"{iv_val:.1f}%", "bg": bg, "tc": tc, "iv_bg": iv_bg, "iv_tc": iv_tc
+                "TG": target, "IV": f"{iv_val:.1f}%", "class": row_class, "iv_val_num": iv_val
             })
     except: continue
 
 if sound_triggered: play_beep()
 
-st.markdown("<h2 style='text-align:center;'>💎 رادار القناص V40 المعدل 💎</h2>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>💎 رادار القناص V40 💎</h1>", unsafe_allow_html=True)
 
 if results:
-    html = "<table><thead><tr><th>🔥</th><th>السهم</th><th>الحالة</th><th>الوقت</th><th>السعر</th><th>الهدف 🎯</th><th>IV</th></tr></thead><tbody>"
+    html = "<table class='full-width-table'><thead><tr><th>🔥</th><th>السهم</th><th>الحالة</th><th>الوقت</th><th>السعر</th><th>الهدف 🎯</th><th>IV</th></tr></thead><tbody>"
     for r in results:
-        html += f"<tr style='background-color: {r['bg']}; color: {r['tc']};'>"
+        # تحديد كلاس خلية الـ IV بناءً على النسبة
+        iv_cell_class = "class='iv-blue'" if r['iv_val_num'] < 10 else ""
+        
+        html += f"<tr class='{r['class']}'>"
         html += f"<td>{r['⚡']}</td><td>{r['S']}</td><td>{r['ST']}</td><td>{r['T']}</td><td>{r['P']}</td><td class='target-cell'>{r['TG']}</td>"
-        html += f"<td style='background-color: {r['iv_bg']}; color: {r['iv_tc']};'>{r['IV']}</td></tr>"
+        html += f"<td {iv_cell_class}>{r['IV']}</td></tr>"
     st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
