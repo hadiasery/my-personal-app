@@ -7,36 +7,46 @@ import time
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث كل 15 ثانية
-st_autorefresh(interval=15000, key="v41_6_big_font")
+st_autorefresh(interval=15000, key="v41_7_black_grid")
 
-st.set_page_config(page_title="رادار القناص V41.6", layout="wide")
+st.set_page_config(page_title="رادار القناص V41.7", layout="wide")
 
 def play_beep():
     st.markdown("""<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>""", unsafe_allow_html=True)
 
-# --- تنسيق CSS للخط الكبير والكلمات الصريحة ---
+# --- تنسيق CSS للجدول المخطط بالأسود العريض ---
 st.markdown("""
     <style>
     .block-container { padding: 1rem; max-width: 98%; }
     .stApp { background-color: white; }
     
-    .main-container { display: flex; gap: 20px; align-items: flex-start; }
-    .legend-box { width: 240px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc; }
+    /* تنسيق الجدول المخطط بالأسود */
+    .full-width-table { 
+        width: 100% !important; 
+        border-collapse: collapse; 
+        background-color: white;
+        border: 2px solid black !important; /* إطار خارجي أسود */
+    }
     
-    .full-width-table { width: 100% !important; border-collapse: collapse; background-color: white; }
-    th { background-color: #1e293b !important; color: white !important; text-align: center !important; padding: 12px; font-size: 18px; }
+    th { 
+        background-color: #1e293b !important; 
+        color: white !important; 
+        text-align: center !important; 
+        padding: 12px; 
+        font-size: 20px;
+        border: 2px solid black !important; /* تخطيط أسود للعناوين */
+    }
     
-    /* تكبير الحروف والارقام وجعلها باللون الاسود */
     td { 
         text-align: center !important; 
         font-weight: 900 !important; 
-        border: 1px solid #cbd5e1 !important; 
+        border: 2px solid black !important; /* تخطيط أسود صريح لكل خلية */
         padding: 12px 8px !important; 
-        font-size: 20px !important; /* حجم خط كبير وواضح */
+        font-size: 20px !important; 
         color: black !important; 
     }
     
-    /* ألوان الخلفيات */
+    /* ألوان الخلفيات المتوسطة */
     .row-calm { background-color: #ffffff !important; }
     .row-call { background-color: #4ade80 !important; } 
     .row-put { background-color: #fb7185 !important; }  
@@ -45,8 +55,9 @@ st.markdown("""
     
     .iv-blue { background-color: #7dd3fc !important; } 
     
+    .legend-box { width: 240px; padding: 12px; border: 2px solid black; border-radius: 8px; background-color: #f8fafc; }
     .leg-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: bold; color: black; }
-    .leg-color { width: 20px; height: 20px; margin-right: 10px; border-radius: 3px; border: 1px solid #94a3b8; }
+    .leg-color { width: 20px; height: 20px; margin-right: 10px; border-radius: 3px; border: 1px solid black; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -70,7 +81,6 @@ try:
             returns = np.log(df['Close'] / df['Close'].shift(1))
             iv_val = returns.std() * np.sqrt(252 * 390) * 100
             
-            # الحالة والكلمات
             icon, status, row_class, target = "⚪", "هدوء", "row-calm", "-"
             
             if m_val > s_val:
@@ -88,19 +98,19 @@ try:
 
             results.append({"⚡": icon, "S": sym, "ST": status, "P": f"{curr_p:.2f}", "TG": target, "IV": f"{iv_val:.1f}%", "class": row_class, "iv_val_num": iv_val})
 
-    st.markdown("<h1 style='text-align:center; color:black;'>💎 رادار القناص V41.6 💎</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; color:black;'>💎 رادار القناص V41.7 💎</h1>", unsafe_allow_html=True)
 
     col_leg, col_tab = st.columns([1, 5])
 
     with col_leg:
         st.markdown("""
             <div class="legend-box">
-                <h5 style="margin:0 0 10px 0; color:black; border-bottom:1px solid #ddd;">دليل الإشارات</h5>
+                <h5 style="margin:0 0 10px 0; color:black; border-bottom:1px solid black;">دليل الإشارات</h5>
                 <div class="leg-item"><div class="leg-color" style="background-color:#22c55e;"></div> انفجار صعودي</div>
                 <div class="leg-item"><div class="leg-color" style="background-color:#4ade80;"></div> كول (متابعة)</div>
                 <div class="leg-item"><div class="leg-color" style="background-color:#ef4444;"></div> انفجار هبوطي</div>
                 <div class="leg-item"><div class="leg-color" style="background-color:#fb7185;"></div> بوت (متابعة)</div>
-                <div class="leg-item"><div class="leg-color" style="background-color:#ffffff; border:1px solid #ccc;"></div> هدوء</div>
+                <div class="leg-item"><div class="leg-color" style="background-color:#ffffff; border:1px solid black;"></div> هدوء</div>
                 <div class="leg-item"><div class="leg-color" style="background-color:#7dd3fc;"></div> IV رخيص</div>
             </div>
         """, unsafe_allow_html=True)
@@ -114,4 +124,4 @@ try:
             st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
             if sound_triggered: play_beep()
 except:
-    st.info("جاري تحديث البيانات...")
+    st.info("تحديث البيانات...")
