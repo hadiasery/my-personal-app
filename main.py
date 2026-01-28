@@ -7,25 +7,24 @@ import time
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث كل 15 ثانية
-st_autorefresh(interval=15000, key="v41_7_black_grid")
+st_autorefresh(interval=15000, key="v41_8_two_colors")
 
-st.set_page_config(page_title="رادار القناص V41.7", layout="wide")
+st.set_page_config(page_title="رادار القناص V41.8", layout="wide")
 
 def play_beep():
     st.markdown("""<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>""", unsafe_allow_html=True)
 
-# --- تنسيق CSS للجدول المخطط بالأسود العريض ---
+# --- تنسيق CSS المبسط (أخضر وأحمر فقط) ---
 st.markdown("""
     <style>
     .block-container { padding: 1rem; max-width: 98%; }
     .stApp { background-color: white; }
     
-    /* تنسيق الجدول المخطط بالأسود */
     .full-width-table { 
         width: 100% !important; 
         border-collapse: collapse; 
         background-color: white;
-        border: 2px solid black !important; /* إطار خارجي أسود */
+        border: 2px solid black !important;
     }
     
     th { 
@@ -34,30 +33,28 @@ st.markdown("""
         text-align: center !important; 
         padding: 12px; 
         font-size: 20px;
-        border: 2px solid black !important; /* تخطيط أسود للعناوين */
+        border: 2px solid black !important;
     }
     
     td { 
         text-align: center !important; 
         font-weight: 900 !important; 
-        border: 2px solid black !important; /* تخطيط أسود صريح لكل خلية */
+        border: 2px solid black !important; 
         padding: 12px 8px !important; 
         font-size: 20px !important; 
         color: black !important; 
     }
     
-    /* ألوان الخلفيات المتوسطة */
+    /* الألوان المختصرة */
     .row-calm { background-color: #ffffff !important; }
-    .row-call { background-color: #4ade80 !important; } 
-    .row-put { background-color: #fb7185 !important; }  
-    .row-strong-call { background-color: #22c55e !important; } 
-    .row-strong-put { background-color: #ef4444 !important; }  
+    .row-green { background-color: #22c55e !important; } /* أخضر عادي */
+    .row-red { background-color: #ef4444 !important; }   /* أحمر عادي */
     
     .iv-blue { background-color: #7dd3fc !important; } 
     
-    .legend-box { width: 240px; padding: 12px; border: 2px solid black; border-radius: 8px; background-color: #f8fafc; }
-    .leg-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: bold; color: black; }
-    .leg-color { width: 20px; height: 20px; margin-right: 10px; border-radius: 3px; border: 1px solid black; }
+    .legend-box { width: 220px; padding: 12px; border: 2px solid black; border-radius: 8px; background-color: #f8fafc; }
+    .leg-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 15px; font-weight: bold; color: black; }
+    .leg-color { width: 22px; height: 22px; margin-right: 10px; border-radius: 3px; border: 1px solid black; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -83,34 +80,37 @@ try:
             
             icon, status, row_class, target = "⚪", "هدوء", "row-calm", "-"
             
+            # منطق الألوان المبسط
             if m_val > s_val:
                 target = f"{curr_p + (high_d - low_d)*0.04:.2f}"
+                row_class = "row-green"
                 if v_ratio > 1.15: 
-                    icon, status, row_class = "انفجار 🚀", "كول قوي", "row-strong-call"
+                    icon, status = "انفجار 🚀", "كول قوي"
                     sound_triggered = True
-                else: icon, status, row_class = "🟢", "كول", "row-call"
+                else: 
+                    icon, status = "🟢", "كول"
             elif m_val < s_val:
                 target = f"{curr_p - (high_d - low_d)*0.04:.2f}"
+                row_class = "row-red"
                 if v_ratio > 1.15: 
-                    icon, status, row_class = "انفجار 📉", "بوت قوي", "row-strong-put"
+                    icon, status = "انفجار 📉", "بوت قوي"
                     sound_triggered = True
-                else: icon, status, row_class = "🔴", "بوت", "row-put"
+                else: 
+                    icon, status = "🔴", "بوت"
 
             results.append({"⚡": icon, "S": sym, "ST": status, "P": f"{curr_p:.2f}", "TG": target, "IV": f"{iv_val:.1f}%", "class": row_class, "iv_val_num": iv_val})
 
-    st.markdown("<h1 style='text-align:center; color:black;'>💎 رادار القناص V41.7 💎</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; color:black;'>💎 رادار القناص V41.8 💎</h1>", unsafe_allow_html=True)
 
     col_leg, col_tab = st.columns([1, 5])
 
     with col_leg:
         st.markdown("""
             <div class="legend-box">
-                <h5 style="margin:0 0 10px 0; color:black; border-bottom:1px solid black;">دليل الإشارات</h5>
-                <div class="leg-item"><div class="leg-color" style="background-color:#22c55e;"></div> انفجار صعودي</div>
-                <div class="leg-item"><div class="leg-color" style="background-color:#4ade80;"></div> كول (متابعة)</div>
-                <div class="leg-item"><div class="leg-color" style="background-color:#ef4444;"></div> انفجار هبوطي</div>
-                <div class="leg-item"><div class="leg-color" style="background-color:#fb7185;"></div> بوت (متابعة)</div>
-                <div class="leg-item"><div class="leg-color" style="background-color:#ffffff; border:1px solid black;"></div> هدوء</div>
+                <h5 style="margin:0 0 10px 0; color:black; border-bottom:1px solid black;">دليل الألوان</h5>
+                <div class="leg-item"><div class="leg-color" style="background-color:#22c55e;"></div> اتجاه صاعد (كول)</div>
+                <div class="leg-item"><div class="leg-color" style="background-color:#ef4444;"></div> اتجاه هابط (بوت)</div>
+                <div class="leg-item"><div class="leg-color" style="background-color:#ffffff; border:1px solid black;"></div> هدوء / انتظار</div>
                 <div class="leg-item"><div class="leg-color" style="background-color:#7dd3fc;"></div> IV رخيص</div>
             </div>
         """, unsafe_allow_html=True)
