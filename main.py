@@ -7,31 +7,35 @@ import time
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث كل 15 ثانية
-st_autorefresh(interval=15000, key="v41_light_colors")
+st_autorefresh(interval=15000, key="v41_1_medium_colors")
 
-st.set_page_config(page_title="رادار القناص V41", layout="wide")
+st.set_page_config(page_title="رادار القناص V41.1", layout="wide")
 
 def play_beep():
     st.markdown("""<audio autoplay><source src="https://www.soundjay.com/buttons/beep-01a.mp3" type="audio/mpeg"></audio>""", unsafe_allow_html=True)
 
-# --- تنسيق الألوان الفاتحة ---
+# --- تنسيق الألوان المتوسطة (أكثر وضوحاً) ---
 st.markdown("""
     <style>
     .block-container { padding: 1rem; max-width: 100%; }
     .stApp { background-color: white; }
     .full-width-table { width: 100% !important; border-collapse: collapse; background-color: white; }
-    th { background-color: #f8fafc !important; color: #1e293b !important; text-align: center !important; border-bottom: 2px solid #e2e8f0 !important; padding: 12px; }
-    td { text-align: center !important; font-weight: bold !important; border: 1px solid #f1f5f9 !important; padding: 10px; }
+    th { background-color: #1e293b !important; color: white !important; text-align: center !important; padding: 12px; }
+    td { text-align: center !important; font-weight: bold !important; border: 1px solid #e2e8f0 !important; padding: 10px; }
     
-    /* ألوان فاتحة (Pastel) */
-    .row-calm { background-color: #ffffff !important; color: #94a3b8 !important; }
-    .row-call { background-color: #dcfce7 !important; color: #166534 !important; } /* أخضر فاتح */
-    .row-put { background-color: #fee2e2 !important; color: #991b1b !important; }  /* أحمر فاتح */
-    .row-strong-call { background-color: #4ade80 !important; color: white !important; } /* أخضر زاهي */
-    .row-strong-put { background-color: #f87171 !important; color: white !important; }  /* أحمر زاهي */
+    /* حالة الهدوء: خلفية بيضاء نص رمادي داكن */
+    .row-calm { background-color: #ffffff !important; color: #64748b !important; }
     
-    .iv-blue { background-color: #e0f2fe !important; color: #0369a1 !important; }
-    .target-cell { color: #3b82f6 !important; }
+    /* ألوان متوسطة الوضوح (ليست فاتحة ولا غامقة) */
+    .row-call { background-color: #22c55e !important; color: white !important; } /* أخضر حيوي */
+    .row-put { background-color: #ef4444 !important; color: white !important; }  /* أحمر حيوي */
+    
+    /* ألوان القوة (أكثر عمقاً للتنبيه) */
+    .row-strong-call { background-color: #15803d !important; color: white !important; } /* أخضر غامق ملكي */
+    .row-strong-put { background-color: #b91c1c !important; color: white !important; }  /* أحمر غامق ملكي */
+    
+    .iv-blue { background-color: #0ea5e9 !important; color: white !important; } /* أزرق واضح للـ IV */
+    .target-cell { color: #2563eb !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -42,6 +46,7 @@ results = []
 sound_triggered = False
 
 try:
+    # جلب البيانات
     data = yf.download(list(STOCKS.keys()), period='2d', interval='1m', group_by='ticker', progress=False)
     
     for ticker_sym, display_name in STOCKS.items():
@@ -49,13 +54,9 @@ try:
         if not df.empty and len(df) > 10:
             curr_p = float(df['Close'].iloc[-1])
             
-            # تعديل سعر SPX ليظهر بشكل صحيح (ضرب في 10)
-            if display_name == 'SPX':
-                display_price = curr_p * 10
-                multiplier = 10
-            else:
-                display_price = curr_p
-                multiplier = 1
+            # سعر SPX التقديري
+            multiplier = 10 if display_name == 'SPX' else 1
+            display_price = curr_p * multiplier
 
             high_d, low_d = float(df['High'].max()), float(df['Low'].min())
             macd = ta.macd(df['Close'], fast=5, slow=13, signal=4)
@@ -64,6 +65,7 @@ try:
             returns = np.log(df['Close'] / df['Close'].shift(1))
             iv_val = returns.std() * np.sqrt(252 * 390) * 100
             
+            # المنطق
             icon, status, row_class, target = "⚪", "هدوء", "row-calm", "-"
             
             if m_val > s_val:
@@ -83,7 +85,7 @@ try:
 
             results.append({"⚡": icon, "S": display_name, "ST": status, "P": f"{display_price:.2f}", "TG": target, "IV": f"{iv_val:.1f}%", "class": row_class, "iv_val_num": iv_val})
 
-    st.markdown("<h1 style='text-align:center; color:#1e293b;'>💎 رادار القناص V41.0 💎</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; color:#1e293b;'>💎 رادار القناص V41.1 💎</h1>", unsafe_allow_html=True)
 
     if results:
         html = "<table class='full-width-table'><thead><tr><th>إشارة</th><th>السهم</th><th>الحالة</th><th>السعر</th><th>الهدف 🎯</th><th>IV</th></tr></thead><tbody>"
@@ -93,4 +95,4 @@ try:
         st.markdown(html + "</tbody></table>", unsafe_allow_html=True)
         if sound_triggered: play_beep()
 except Exception as e:
-    st.error("جاري تحديث البيانات... انتظر ثواني")
+    st.info("جاري تحديث البيانات اللحظية...")
