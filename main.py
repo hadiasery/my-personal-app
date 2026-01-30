@@ -5,12 +5,12 @@ import pandas as pd
 import time
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث الصفحة إجبارياً كل 10 ثوانٍ
-st_autorefresh(interval=10000, key="v42_force_refresh_final")
+# التحديث كل 10 ثوانٍ
+st_autorefresh(interval=10000, key="v42_final_stable")
 
 st.set_page_config(page_title="رادار القناص V42.2", layout="wide")
 
-# تصميم الألوان والخطوط (أبيض بالكامل مع خط 30)
+# تصميم الألوان والخطوط (أبيض بالكامل - خط 30)
 st.markdown("""
     <style>
     .stApp { background-color: white !important; }
@@ -21,7 +21,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.2 💎 <br> <span style='font-size:20px;'>آخر تحديث: {time.strftime('%H:%M:%S')}</span></h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.2 💎 <br> <span style='font-size:22px;'>توقيت الرصد: {time.strftime('%H:%M:%S')}</span></h1>", unsafe_allow_html=True)
 
 STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD', 'NIO']
 
@@ -32,7 +32,7 @@ for col, title in zip(cols, titles):
     col.markdown(f'<div class="header-box">{title}</div>', unsafe_allow_html=True)
 
 try:
-    # جلب البيانات - أضفت محرك 'threaded' لتسريع التحديث
+    # جلب البيانات
     data = yf.download(STOCKS, period='2d', interval='1m', group_by='ticker', progress=False, threads=True)
 
     for sym in STOCKS:
@@ -42,27 +42,31 @@ try:
                 if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
                 
                 p = float(df['Close'].iloc[-1])
-                chg = ((p - df['Open'].iloc[0]) / df['Open'].iloc[0]) * 100
+                # حساب التغير من إغلاق أمس الفعلي
+                prev_c = df['Close'].iloc[0]
+                chg = ((p - prev_c) / prev_c) * 100
+                
                 rsi = int(ta.rsi(df['Close'], length=14).iloc[-1])
                 ema = ta.ema(df['Close'], length=50).iloc[-1]
                 
-                # التنسيق
+                # منطق الاستباق ⚡ (فوليوم عالٍ جداً)
+                v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
+                pre = "⚡" if v_ratio > 1.3 else ""
+                
+                # التنسيق والألوان
                 style = "row-g" if p > ema else "row-r"
                 icon = "🟢" if p > ema else "🔴"
-                
-                # ميزة الاستباق ⚡
-                v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
-                pre = "⚡" if v_ratio > 1.2 else ""
+                trend = "صاعد ↑" if p > ema else "هابط ↓"
 
-                # العرض
+                # العرض المباشر
                 r1, r2, r3, r4, r5, r6 = st.columns([1, 1, 1, 1, 2, 1])
                 r1.markdown(f'<div class="{style} big-font">{pre}{icon}</div>', unsafe_allow_html=True)
                 r2.markdown(f'<div class="{style} big-font">{sym}</div>', unsafe_allow_html=True)
                 r3.markdown(f'<div class="{style} big-font">{chg:+.2f}%</div>', unsafe_allow_html=True)
                 r4.markdown(f'<div class="{style} big-font">{p:.2f}</div>', unsafe_allow_html=True)
-                r5.markdown(f'<div class="{style} big-font">{"صاعد" if p > ema else "هابط"} | {rsi}</div>', unsafe_allow_html=True)
-                r6.markdown(f'<div class="{style} big-font">ممتازة</div>', unsafe_allow_html=True)
+                r5.markdown(f'<div class="{style} big-font">{trend} | RSI:{rsi}</div>', unsafe_allow_html=True)
+                r6.markdown(f'<div class="{style} big-font">{"ممتازة ✅" if (p > ema and rsi > 50) or (p < ema and rsi < 50) else "مراقبة"}</div>', unsafe_allow_html=True)
         except: continue
 
 except Exception as e:
-    st.info("🔄 جاري تحديث البيانات...")
+    st.write("🔄 جاري تحديث السيولة...")
