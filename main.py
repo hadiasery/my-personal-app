@@ -5,58 +5,26 @@ import pandas as pd
 import time
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث كل 10 ثوانٍ لضمان رصد السيولة
-st_autorefresh(interval=10000, key="v42_fire_only_final")
+# تحديث كل 10 ثوانٍ
+st_autorefresh(interval=10000, key="v42_3_acceleration")
 
-st.set_page_config(page_title="رادار القناص V42.2", layout="wide")
+st.set_page_config(page_title="رادار القناص V42.3", layout="wide")
 
-# تصميم الألوان والخطوط الضخمة (30px)
 st.markdown("""
     <style>
     .stApp { background-color: white !important; }
     .big-font { font-size: 30px !important; font-weight: 900 !important; color: black !important; text-align: center; }
     .header-box { background-color: #1e293b; color: white; padding: 10px; text-align: center; font-size: 25px; font-weight: bold; border: 3px solid black; }
-    
-    /* العمود الأول بخلفية بيضاء صافيه بدون دوائر */
-    .white-col-empty { 
-        background-color: white !important; 
-        padding: 10px; 
-        border: 3px solid black; 
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 85px;
-    }
-    
-    /* مربع النار الأزرق الذي يظهر عند الدخول فقط */
-    .fire-box-blue {
-        background-color: #0000FF !important;
-        color: white !important;
-        font-size: 38px !important;
-        padding: 5px 30px;
-        border-radius: 8px;
-        font-weight: bold;
-    }
-
-    /* ألوان الصفوف (أخضر وأحمر) */
+    .white-col-empty { background-color: white !important; padding: 10px; border: 3px solid black; display: flex; justify-content: center; align-items: center; height: 85px; }
+    .fire-box-blue { background-color: #0000FF !important; color: white !important; font-size: 38px !important; padding: 5px 30px; border-radius: 8px; font-weight: bold; }
     .row-g { background-color: #22c55e; padding: 20px; border: 3px solid black; margin-bottom: -3px; }
     .row-r { background-color: #ef4444; padding: 20px; border: 3px solid black; margin-bottom: -3px; }
-    
-    /* نصوص التنبيه */
-    .entry-blue-text { 
-        color: #0000FF !important; 
-        font-size: 30px !important; 
-        font-weight: 900; 
-        text-align: center;
-        background-color: white;
-        padding: 20px;
-        border: 3px solid black;
-    }
+    .entry-blue-text { color: #0000FF !important; font-size: 30px !important; font-weight: 900; text-align: center; background-color: white; padding: 20px; border: 4px solid #0000FF; }
     .wait-box { background-color: white; color: #cccccc; font-size: 25px; padding: 20px; border: 3px solid black; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.2 💎</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.3 💎<br><span style='font-size:18px;'>رصد التسارع السعري والسيولة | {time.strftime('%H:%M:%S')}</span></h1>", unsafe_allow_html=True)
 
 STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD', 'NIO']
 
@@ -74,35 +42,43 @@ try:
             if not df.empty:
                 if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
                 
+                # البيانات الأساسية
                 p = float(df['Close'].iloc[-1])
                 prev_c = df['Close'].iloc[0]
                 chg = ((p - prev_c) / prev_c) * 100
-                rsi = int(ta.rsi(df['Close'], length=14).iloc[-1])
+                rsi = ta.rsi(df['Close'], length=14).iloc[-1]
                 ema = ta.ema(df['Close'], length=50).iloc[-1]
+                
+                # --- تطوير المنطق: رصد التسارع ---
+                # حساب التغير في آخر دقيقتين (سرعة الحركة)
+                price_velocity = (df['Close'].iloc[-1] - df['Close'].iloc[-3]) / df['Close'].iloc[-3] * 100
+                
+                # شرط السيولة (خففناه قليلاً ليكون أسرع)
                 v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
                 
-                # شرط الدخول: سيولة قوية + توافق فني
-                is_entry = (v_ratio > 1.25) and ((p > ema and rsi > 52) or (p < ema and rsi < 48))
+                # شرط الدخول المطور: (سيولة جيدة) "أو" (تسارع سعري قوي مع اتجاه صحيح)
+                # التسارع القوي هو تحرك السهم أكثر من 0.1% في دقيقتين
+                accel_entry = abs(price_velocity) > 0.10 
+                
+                is_entry = (v_ratio > 1.15 or accel_entry) and ((p > ema and rsi > 52) or (p < ema and rsi < 48))
                 
                 style = "row-g" if p > ema else "row-r"
 
-                # منطق عرض العمود الأول (أبيض فارغ أو نار زرقاء)
                 if is_entry:
                     icon_html = f'<div class="white-col-empty"><div class="fire-box-blue">🔥</div></div>'
                     entry_html = f'<div class="entry-blue-text">الدخول الآن 🔥</div>'
                 else:
-                    icon_html = f'<div class="white-col-empty"></div>' # فارغ تماماً
+                    icon_html = f'<div class="white-col-empty"></div>'
                     entry_html = f'<div class="wait-box">مراقبة..</div>'
 
-                # العرض اللحظي
                 r1, r2, r3, r4, r5, r6, r7 = st.columns([1, 1, 1, 1, 2, 1, 2.2])
                 r1.markdown(icon_html, unsafe_allow_html=True)
                 r2.markdown(f'<div class="{style} big-font">{sym}</div>', unsafe_allow_html=True)
                 r3.markdown(f'<div class="{style} big-font">{chg:+.2f}%</div>', unsafe_allow_html=True)
                 r4.markdown(f'<div class="{style} big-font">{p:.2f}</div>', unsafe_allow_html=True)
-                r5.markdown(f'<div class="{style} big-font">{"صاعد ↑" if p > ema else "هابط ↓"} | {rsi}</div>', unsafe_allow_html=True)
+                r5.markdown(f'<div class="{style} big-font">{"صاعد ↑" if p > ema else "هابط ↓"} | {int(rsi)}</div>', unsafe_allow_html=True)
                 r6.markdown(f'<div class="{style} big-font">ممتازة ✅</div>', unsafe_allow_html=True)
                 r7.markdown(entry_html, unsafe_allow_html=True)
         except: continue
 except:
-    st.write("🔄 يتم تحديث الرادار...")
+    st.write("🔄 جاري التحديث...")
