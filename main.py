@@ -6,9 +6,9 @@ import time
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث كل 10 ثوانٍ
-st_autorefresh(interval=10000, key="v42_3_acceleration")
+st_autorefresh(interval=10000, key="v42_4_balanced")
 
-st.set_page_config(page_title="رادار القناص V42.3", layout="wide")
+st.set_page_config(page_title="رادار القناص V42.4", layout="wide")
 
 st.markdown("""
     <style>
@@ -24,7 +24,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.3 💎<br><span style='font-size:18px;'>رصد التسارع السعري والسيولة | {time.strftime('%H:%M:%S')}</span></h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.4 💎</h1>", unsafe_allow_html=True)
 
 STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD', 'NIO']
 
@@ -42,25 +42,24 @@ try:
             if not df.empty:
                 if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
                 
-                # البيانات الأساسية
                 p = float(df['Close'].iloc[-1])
                 prev_c = df['Close'].iloc[0]
                 chg = ((p - prev_c) / prev_c) * 100
                 rsi = ta.rsi(df['Close'], length=14).iloc[-1]
                 ema = ta.ema(df['Close'], length=50).iloc[-1]
                 
-                # --- تطوير المنطق: رصد التسارع ---
-                # حساب التغير في آخر دقيقتين (سرعة الحركة)
-                price_velocity = (df['Close'].iloc[-1] - df['Close'].iloc[-3]) / df['Close'].iloc[-3] * 100
-                
-                # شرط السيولة (خففناه قليلاً ليكون أسرع)
+                # --- الفلتر الموزون ---
+                # 1. السيولة: يجب أن تكون فوق المعدل بـ 20%
                 v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
                 
-                # شرط الدخول المطور: (سيولة جيدة) "أو" (تسارع سعري قوي مع اتجاه صحيح)
-                # التسارع القوي هو تحرك السهم أكثر من 0.1% في دقيقتين
-                accel_entry = abs(price_velocity) > 0.10 
+                # 2. التسارع: رفعنا النسبة لـ 0.15% في دقيقتين (فلتر أدق)
+                price_velocity = (df['Close'].iloc[-1] - df['Close'].iloc[-3]) / df['Close'].iloc[-3] * 100
+                accel_entry = abs(price_velocity) > 0.15 
                 
-                is_entry = (v_ratio > 1.15 or accel_entry) and ((p > ema and rsi > 52) or (p < ema and rsi < 48))
+                # الشرط الجديد: لازم سيولة "مع" تسارع، أو سيولة انفجارية جداً وحدها
+                is_entry = (v_ratio > 1.20 and accel_entry) or (v_ratio > 1.50)
+                # إضافة التأكيد الفني الأساسي
+                is_entry = is_entry and ((p > ema and rsi > 52) or (p < ema and rsi < 48))
                 
                 style = "row-g" if p > ema else "row-r"
 
