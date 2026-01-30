@@ -5,10 +5,9 @@ import pandas as pd
 import time
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث تلقائي كل 10 ثوانٍ
-st_autorefresh(interval=10000, key="v42_7_ultimate")
+st_autorefresh(interval=10000, key="v42_8_momentum_focus")
 
-st.set_page_config(page_title="رادار القناص V42.7", layout="wide")
+st.set_page_config(page_title="رادار القناص V42.8", layout="wide")
 
 st.markdown("""
     <style>
@@ -23,19 +22,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.7 💎<br><span style='font-size:18px;'>مراقب التشبع والانعكاس | {time.strftime('%H:%M:%S')}</span></h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align:center; color:black;'>💎 رادار القناص V42.8 💎<br><span style='font-size:18px;'>فلتر الاتجاه اللحظي | {time.strftime('%H:%M:%S')}</span></h1>", unsafe_allow_html=True)
 
 STOCKS = ['SPY', 'AAPL', 'NVDA', 'TSLA', 'MSFT', 'AMZN', 'META', 'GOOGL', 'AMD', 'NIO']
 
-# الأعمدة المطلوبة
-cols = st.columns([1, 1, 1, 1, 1.2, 1.5, 2])
-titles = ["إشارة", "السهم", "السعر", "إغلاق أمس", "صاعد/هابط (RSI)", "الحالة", "⚡ تنبيه"]
+cols = st.columns([1, 1, 1, 1.2, 1.5, 2])
+titles = ["إشارة", "السهم", "السعر", "الاتجاه (RSI)", "الحالة", "⚡ تنبيه القناص"]
 
 for col, title in zip(cols, titles):
     col.markdown(f'<div class="header-box">{title}</div>', unsafe_allow_html=True)
 
 try:
-    # جلب البيانات
     data = yf.download(STOCKS, period='2d', interval='1m', group_by='ticker', progress=False)
 
     for sym in STOCKS:
@@ -43,36 +40,30 @@ try:
             df = data[sym].dropna()
             if not df.empty:
                 p = float(df['Close'].iloc[-1])
-                prev_close = yf.Ticker(sym).info.get('previousClose', p)
                 rsi = ta.rsi(df['Close'], length=14).iloc[-1]
                 ema = ta.ema(df['Close'], length=50).iloc[-1]
                 v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
                 
-                # تحديد الحالة بناءً على RSI
+                # تحليل الحالة
                 if rsi > 70: status = "تشبع شرائي ⚠️"
                 elif rsi < 30: status = "تشبع بيعي ⚠️"
                 elif 45 < rsi < 55: status = "تذبذب ممل ⚖️"
                 else: status = "تحرك نشط ✅"
 
-                # شرط الدخول (سيولة + اتجاه)
-                is_entry = (v_ratio > 1.15 and ((p > ema and rsi > 52) or (p < ema and rsi < 48)))
+                # شرط الدخول المطور (يعتمد على الزخم اللحظي)
+                is_entry = (v_ratio > 1.2 and ((p > ema and rsi > 52) or (p < ema and rsi < 48)))
                 
-                # اللون يعتمد على السعر الحالي مقارنة بإغلاق أمس
-                style = "row-g" if p > prev_close else "row-r"
+                # اللون يعتمد على RSI (الاتجاه اللحظي)
+                style = "row-g" if rsi > 50 else "row-r"
                 trend_text = "صاعد ↑" if rsi > 50 else "هابط ↓"
 
-                # عرض الصفوف
-                r1, r2, r3, r4, r5, r6, r7 = st.columns([1, 1, 1, 1, 1.2, 1.5, 2])
-                
-                # العمود 1: النار مع مربع أزرق ووميض عند الدخول
+                r1, r2, r3, r4, r5, r6 = st.columns([1, 1, 1, 1.2, 1.5, 2])
                 r1.markdown(f'<div class="white-col-empty">{"<div class=\'fire-box-blue\'>🔥</div>" if is_entry else ""}</div>', unsafe_allow_html=True)
-                
                 r2.markdown(f'<div class="{style}">{sym}</div>', unsafe_allow_html=True)
                 r3.markdown(f'<div class="{style}">{p:.2f}</div>', unsafe_allow_html=True)
-                r4.markdown(f'<div class="status-box">{prev_close:.2f}</div>', unsafe_allow_html=True)
-                r5.markdown(f'<div class="{style}">{trend_text} {int(rsi)}%</div>', unsafe_allow_html=True)
-                r6.markdown(f'<div class="status-box">{status}</div>', unsafe_allow_html=True)
-                r7.markdown(f'<div class="status-box">{"دخول الآن 🔥" if is_entry else "مراقبة.."}</div>', unsafe_allow_html=True)
+                r4.markdown(f'<div class="{style}">{trend_text} {int(rsi)}%</div>', unsafe_allow_html=True)
+                r5.markdown(f'<div class="status-box">{status}</div>', unsafe_allow_html=True)
+                r6.markdown(f'<div class="status-box">{"دخول الآن 🔥" if is_entry else "مراقبة.."}</div>', unsafe_allow_html=True)
         except: continue
 except:
-    st.write("🔄 جاري تحديث البيانات...")
+    st.write("🔄 جاري التحديث...")
