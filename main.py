@@ -6,11 +6,11 @@ import time
 from streamlit_autorefresh import st_autorefresh
 
 # تحديث كل 10 ثوانٍ لضمان السرعة القصوى
-st_autorefresh(interval=10000, key="v42_final_lightning_fix")
+st_autorefresh(interval=10000, key="v42_final_white_bg_fix")
 
 st.set_page_config(page_title="رادار القناص V42.2", layout="wide")
 
-# تصميم الألوان والخطوط الضخمة (30px)
+# تصميم الألوان والخطوط الضخمة (30px) - خلفية بيضاء بالكامل
 st.markdown("""
     <style>
     .stApp { background-color: white !important; }
@@ -21,19 +21,19 @@ st.markdown("""
     .row-g { background-color: #22c55e; padding: 20px; border: 3px solid black; margin-bottom: -3px; }
     .row-r { background-color: #ef4444; padding: 20px; border: 3px solid black; margin-bottom: -3px; }
     
-    /* المربع الأسود مع إشارة الدخول باللون الأزرق الصريح */
-    .entry-box-blue { 
-        background-color: black !important; 
-        color: #3b82f6 !important; /* أزرق ملكي واضح */
+    /* صندوق التنبيه الاستباقي: خلفية بيضاء وكتابة سوداء */
+    .entry-box-white { 
+        background-color: white !important; 
+        color: black !important; 
         font-size: 32px !important; 
         font-weight: 900; 
         padding: 20px; 
         border: 3px solid black; 
         text-align: center; 
     }
-    .wait-box { 
-        background-color: black !important; 
-        color: #555555 !important; 
+    .wait-box-white { 
+        background-color: white !important; 
+        color: #888888 !important; /* لون رمادي خفيف للمراقبة */
         font-size: 25px; 
         padding: 20px; 
         border: 3px solid black; 
@@ -53,7 +53,7 @@ for col, title in zip(cols, titles):
     col.markdown(f'<div class="header-box">{title}</div>', unsafe_allow_html=True)
 
 try:
-    # جلب البيانات باستخدام threads لتسريع العملية
+    # جلب البيانات
     data = yf.download(STOCKS, period='2d', interval='1m', group_by='ticker', progress=False, threads=True)
 
     for sym in STOCKS:
@@ -68,27 +68,26 @@ try:
                 rsi = int(ta.rsi(df['Close'], length=14).iloc[-1])
                 ema = ta.ema(df['Close'], length=50).iloc[-1]
                 
-                # --- منطق الاستباق المطور (أكثر حساسية) ---
+                # --- منطق الاستباق ---
                 v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
                 
-                # شرط الدخول: سيولة تتحرك (أكثر من المعدل بـ 10% فقط) + اتجاه صحيح
+                # شرط الدخول الاستباقي
                 is_entry = v_ratio > 1.10 and ((p > ema and rsi > 50) or (p < ema and rsi < 50))
                 
-                # تأكيد ظهور البرق مع الدخول
                 if is_entry:
                     pre_msg = "⚡ الدخول الآن ⚡"
-                    msg_style = "entry-box-blue"
+                    msg_style = "entry-box-white"
                     pre_icon = "⚡"
                 else:
                     pre_msg = "مراقبة.."
-                    msg_style = "wait-box"
+                    msg_style = "wait-box-white"
                     pre_icon = ""
                 
                 style = "row-g" if p > ema else "row-r"
                 icon = "🟢" if p > ema else "🔴"
                 trend = "صاعد ↑" if p > ema else "هابط ↓"
 
-                # العرض المباشر للأعمدة بصورة ضخمة
+                # العرض المباشر
                 r1, r2, r3, r4, r5, r6, r7 = st.columns([1, 1, 1, 1, 2, 1, 1.8])
                 r1.markdown(f'<div class="{style} big-font">{pre_icon}{icon}</div>', unsafe_allow_html=True)
                 r2.markdown(f'<div class="{style} big-font">{sym}</div>', unsafe_allow_html=True)
@@ -100,4 +99,4 @@ try:
         except: continue
 
 except Exception as e:
-    st.write("🔄 يتم الآن تحديث نبض السوق...")
+    st.write("🔄 يتم التحديث...")
