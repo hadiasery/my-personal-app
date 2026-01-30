@@ -5,20 +5,20 @@ import pandas as pd
 import time
 from streamlit_autorefresh import st_autorefresh
 
-# تحديث كل 10 ثوانٍ
-st_autorefresh(interval=10000, key="v42_blue_fire_box")
+# تحديث كل 10 ثوانٍ لضمان رصد السيولة
+st_autorefresh(interval=10000, key="v42_fire_only_final")
 
 st.set_page_config(page_title="رادار القناص V42.2", layout="wide")
 
-# تصميم الألوان والخطوط
+# تصميم الألوان والخطوط الضخمة (30px)
 st.markdown("""
     <style>
     .stApp { background-color: white !important; }
     .big-font { font-size: 30px !important; font-weight: 900 !important; color: black !important; text-align: center; }
     .header-box { background-color: #1e293b; color: white; padding: 10px; text-align: center; font-size: 25px; font-weight: bold; border: 3px solid black; }
     
-    /* العمود الأول بخلفية بيضاء */
-    .white-col-1 { 
+    /* العمود الأول بخلفية بيضاء صافيه بدون دوائر */
+    .white-col-empty { 
         background-color: white !important; 
         padding: 10px; 
         border: 3px solid black; 
@@ -28,21 +28,21 @@ st.markdown("""
         height: 85px;
     }
     
-    /* مربع النار الأزرق عند الدخول */
+    /* مربع النار الأزرق الذي يظهر عند الدخول فقط */
     .fire-box-blue {
         background-color: #0000FF !important;
         color: white !important;
-        font-size: 35px !important;
-        padding: 10px 25px;
-        border-radius: 10px;
+        font-size: 38px !important;
+        padding: 5px 30px;
+        border-radius: 8px;
         font-weight: bold;
     }
 
-    /* ألوان الصفوف المعتادة */
+    /* ألوان الصفوف (أخضر وأحمر) */
     .row-g { background-color: #22c55e; padding: 20px; border: 3px solid black; margin-bottom: -3px; }
     .row-r { background-color: #ef4444; padding: 20px; border: 3px solid black; margin-bottom: -3px; }
     
-    /* إشارة الدخول في العمود الأخير */
+    /* نصوص التنبيه */
     .entry-blue-text { 
         color: #0000FF !important; 
         font-size: 30px !important; 
@@ -52,7 +52,7 @@ st.markdown("""
         padding: 20px;
         border: 3px solid black;
     }
-    .wait-box { background-color: white; color: #aaaaaa; font-size: 25px; padding: 20px; border: 3px solid black; text-align: center; }
+    .wait-box { background-color: white; color: #cccccc; font-size: 25px; padding: 20px; border: 3px solid black; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -81,19 +81,17 @@ try:
                 ema = ta.ema(df['Close'], length=50).iloc[-1]
                 v_ratio = float(df['Volume'].iloc[-1] / df['Volume'].rolling(10).mean().iloc[-1])
                 
-                # شرط الدخول الاستباقي
+                # شرط الدخول: سيولة قوية + توافق فني
                 is_entry = (v_ratio > 1.25) and ((p > ema and rsi > 52) or (p < ema and rsi < 48))
                 
                 style = "row-g" if p > ema else "row-r"
-                icon = "🟢" if p > ema else "🔴"
-                
-                # إعداد المحتوى اللحظي
+
+                # منطق عرض العمود الأول (أبيض فارغ أو نار زرقاء)
                 if is_entry:
-                    # يظهر مربع أزرق صغير داخل الخلفية البيضاء للعمود الأول
-                    icon_html = f'<div class="white-col-1"><div class="fire-box-blue">🔥</div></div>'
+                    icon_html = f'<div class="white-col-empty"><div class="fire-box-blue">🔥</div></div>'
                     entry_html = f'<div class="entry-blue-text">الدخول الآن 🔥</div>'
                 else:
-                    icon_html = f'<div class="white-col-1"><div style="font-size:35px;">{icon}</div></div>'
+                    icon_html = f'<div class="white-col-empty"></div>' # فارغ تماماً
                     entry_html = f'<div class="wait-box">مراقبة..</div>'
 
                 # العرض اللحظي
@@ -102,9 +100,9 @@ try:
                 r2.markdown(f'<div class="{style} big-font">{sym}</div>', unsafe_allow_html=True)
                 r3.markdown(f'<div class="{style} big-font">{chg:+.2f}%</div>', unsafe_allow_html=True)
                 r4.markdown(f'<div class="{style} big-font">{p:.2f}</div>', unsafe_allow_html=True)
-                r5.markdown(f'<div class="{style} big-font">{"صاعد" if p > ema else "هابط"} | {rsi}</div>', unsafe_allow_html=True)
+                r5.markdown(f'<div class="{style} big-font">{"صاعد ↑" if p > ema else "هابط ↓"} | {rsi}</div>', unsafe_allow_html=True)
                 r6.markdown(f'<div class="{style} big-font">ممتازة ✅</div>', unsafe_allow_html=True)
                 r7.markdown(entry_html, unsafe_allow_html=True)
         except: continue
 except:
-    st.write("🔄 جاري التحديث...")
+    st.write("🔄 يتم تحديث الرادار...")
